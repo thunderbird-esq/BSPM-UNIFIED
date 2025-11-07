@@ -37,6 +37,7 @@ faiss-cpu==1.7.4          # FAISS vector database for knowledge base
 # ============================================================================
 python-jose[cryptography]==3.3.0  # JWT token handling (API key auth)
 passlib[bcrypt]==1.7.4    # Password hashing (future auth features)
+bcrypt==4.1.2             # API key hashing (v3.4 security improvement)
 
 # ============================================================================
 # Monitoring & Observability

@@ -25,39 +25,61 @@ mkdir -p "$PROJECT_ROOT/backups"
 echo "   ✅ Directories created"
 echo ""
 
-# Generate API key if not exists
-API_KEY_FILE="$PROJECT_ROOT/secrets/api_keys.txt"
-if [ ! -f "$API_KEY_FILE" ]; then
-    echo "🔑 Generating API key..."
-    
-    # Generate secure random key (Python equivalent of secrets.token_urlsafe(32))
+# Generate API key with bcrypt hash if not exists
+API_KEY_HASH_FILE="$PROJECT_ROOT/secrets/api_key_hashes.txt"
+if [ ! -f "$API_KEY_HASH_FILE" ]; then
+    echo "🔑 Generating API key (with bcrypt hash)..."
+
+    # Generate secure random key and hash it
     if command -v python3 &> /dev/null; then
-        API_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-    elif command -v openssl &> /dev/null; then
-        API_KEY=$(openssl rand -base64 32 | tr -d '/+' | tr '=' '_')
+        # Generate key and hash using Python
+        KEY_AND_HASH=$(python3 <<EOF
+import secrets
+import bcrypt
+
+# Generate key
+key = secrets.token_urlsafe(32)
+
+# Hash key
+key_bytes = key.encode('utf-8')
+hash_bytes = bcrypt.hashpw(key_bytes, bcrypt.gensalt())
+hash_str = hash_bytes.decode('utf-8')
+
+# Output: plaintext|hash
+print(f"{key}|{hash_str}")
+EOF
+        )
+
+        API_KEY=$(echo "$KEY_AND_HASH" | cut -d'|' -f1)
+        API_KEY_HASH=$(echo "$KEY_AND_HASH" | cut -d'|' -f2)
     else
-        echo "   ⚠️  WARNING: Cannot generate API key (no python3 or openssl found)"
-        echo "   Please manually create: $API_KEY_FILE"
+        echo "   ⚠️  WARNING: Cannot generate API key (python3 with bcrypt required)"
+        echo "   Please install: pip install bcrypt"
         API_KEY=""
+        API_KEY_HASH=""
     fi
-    
-    if [ -n "$API_KEY" ]; then
-        echo "$API_KEY" > "$API_KEY_FILE"
-        chmod 600 "$API_KEY_FILE"
-        echo "   ✅ API key generated and saved to: $API_KEY_FILE"
+
+    if [ -n "$API_KEY_HASH" ]; then
+        # Save hash (not plaintext)
+        echo "$API_KEY_HASH" > "$API_KEY_HASH_FILE"
+        chmod 600 "$API_KEY_HASH_FILE"
+        echo "   ✅ API key hash saved to: $API_KEY_HASH_FILE"
         echo ""
-        echo "   🔐 YOUR API KEY (save this securely):"
+        echo "   🔐 YOUR API KEY (save this securely - shown only once):"
         echo "   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "   $API_KEY"
         echo "   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "   ⚠️  SECURITY: The hash (not plaintext) is stored in secrets/"
+        echo "   This key is shown ONLY ONCE. Copy it now!"
         echo ""
         echo "   Use this key in API requests:"
         echo "   curl -H 'X-API-Key: $API_KEY' http://localhost:8000/api/v1/execute ..."
         echo ""
     fi
 else
-    echo "🔑 API key file already exists: $API_KEY_FILE"
-    echo "   (Existing key preserved)"
+    echo "🔑 API key hash file already exists: $API_KEY_HASH_FILE"
+    echo "   (Existing hashes preserved)"
     echo ""
 fi
 
