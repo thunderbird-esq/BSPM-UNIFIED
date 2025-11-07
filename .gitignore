@@ -1,0 +1,66 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+__MACOSX/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Project-specific - Runtime data (not source)
+BSPM-UNIFIED*/logs/
+BSPM-UNIFIED*/secrets/
+BSPM-UNIFIED*/temp_outputs/
+BSPM-UNIFIED*/vectorstore/
+BSPM-UNIFIED*/agent_memory/
+BSPM-UNIFIED*/backups/
+*.log
+
+# Archives
+*.zip
+*.tar.gz
+*.tgz
+
+# Environment
+*.env
+.env

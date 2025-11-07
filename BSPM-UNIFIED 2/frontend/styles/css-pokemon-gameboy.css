@@ -1,0 +1,494 @@
+/**
+ * GBStudio Automation Hub - GameBoy DMG Aesthetic
+ * Version: 3.1
+ * Platform: Intel Mac (macOS Ventura) + Docker
+ * 
+ * Color Palette: Original Game Boy (DMG)
+ * - #0f380f (darkest)
+ * - #306230 (dark)
+ * - #8bac0f (light)
+ * - #9bbc0f (lightest)
+ * 
+ * Font: Press Start 2P (pixel art)
+ * Image Rendering: Pixelated (no smoothing)
+ */
+
+/* ============================================================================
+   CSS Variables - Game Boy Color Palette
+   ============================================================================ */
+:root {
+    /* Original DMG Green Palette */
+    --gb-darkest: #0f380f;
+    --gb-dark: #306230;
+    --gb-light: #8bac0f;
+    --gb-lightest: #9bbc0f;
+    
+    /* UI Colors */
+    --bg-primary: var(--gb-darkest);
+    --bg-secondary: var(--gb-dark);
+    --text-primary: var(--gb-lightest);
+    --text-secondary: var(--gb-light);
+    --border-color: var(--gb-light);
+    --accent-color: var(--gb-light);
+    
+    /* Spacing */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    
+    /* Typography */
+    --font-pixel: 'Press Start 2P', monospace;
+    --font-mono: 'Courier New', Courier, monospace;
+    
+    /* Sizes */
+    --border-width: 2px;
+    --border-radius: 4px;
+}
+
+/* ============================================================================
+   Global Resets & Base Styles
+   ============================================================================ */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: var(--font-mono);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+/* ============================================================================
+   Typography - Pixel Font Styling
+   ============================================================================ */
+.pixel-text {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    line-height: 1.8;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    image-rendering: pixelated;
+    -webkit-font-smoothing: none;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1.pixel-text {
+    font-size: 16px;
+    letter-spacing: 2px;
+}
+
+h2.pixel-text {
+    font-size: 14px;
+    letter-spacing: 1.5px;
+}
+
+/* ============================================================================
+   GameBoy Frame - Border Style
+   ============================================================================ */
+.framed {
+    border: var(--border-width) solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+    background-color: var(--bg-secondary);
+    box-shadow: 
+        inset 0 0 0 1px var(--gb-darkest),
+        0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.framed.primary {
+    background-color: var(--gb-dark);
+    border-color: var(--gb-light);
+}
+
+.framed.secondary {
+    background-color: var(--gb-darkest);
+    border-color: var(--gb-dark);
+}
+
+/* ============================================================================
+   Buttons - Pixel Art Style
+   ============================================================================ */
+.pixel-button {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    background-color: var(--gb-dark);
+    border: 2px solid var(--gb-light);
+    padding: var(--spacing-sm) var(--spacing-md);
+    cursor: pointer;
+    transition: all 0.1s ease;
+    image-rendering: pixelated;
+    position: relative;
+    box-shadow: 
+        2px 2px 0 var(--gb-darkest),
+        inset 0 0 0 1px var(--gb-light);
+}
+
+.pixel-button:hover:not(:disabled) {
+    background-color: var(--gb-light);
+    color: var(--gb-darkest);
+    transform: translate(1px, 1px);
+    box-shadow: 
+        1px 1px 0 var(--gb-darkest),
+        inset 0 0 0 1px var(--gb-darkest);
+}
+
+.pixel-button:active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+}
+
+.pixel-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pixel-button.primary {
+    background-color: var(--gb-light);
+    color: var(--gb-darkest);
+    border-color: var(--gb-lightest);
+}
+
+.pixel-button.primary:hover:not(:disabled) {
+    background-color: var(--gb-lightest);
+}
+
+.pixel-button.approve {
+    background-color: var(--gb-light);
+    color: var(--gb-darkest);
+    min-width: 120px;
+}
+
+.pixel-button.cancel {
+    background-color: var(--gb-dark);
+    color: var(--text-primary);
+    min-width: 120px;
+}
+
+.icon-button {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    background-color: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    transition: color 0.2s ease;
+}
+
+.icon-button:hover {
+    color: var(--gb-light);
+}
+
+/* ============================================================================
+   Modal - Barry Welcome Screen
+   ============================================================================ */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(15, 56, 15, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.modal-content {
+    max-width: 500px;
+    width: 90%;
+    padding: var(--spacing-xl);
+    text-align: center;
+}
+
+.gameboy-frame {
+    border: 4px solid var(--gb-light);
+    background-color: var(--gb-dark);
+    box-shadow: 
+        0 0 0 2px var(--gb-darkest),
+        inset 0 0 0 2px var(--gb-lightest),
+        0 8px 16px rgba(0, 0, 0, 0.7);
+}
+
+.barry-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.barry-avatar {
+    width: 128px;
+    height: 128px;
+    image-rendering: pixelated;
+    border: 2px solid var(--gb-light);
+    background-color: var(--gb-darkest);
+    padding: var(--spacing-sm);
+}
+
+.modal-text {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--text-primary);
+    line-height: 1.8;
+    margin: var(--spacing-xs) 0;
+}
+
+/* ============================================================================
+   App Container & Layout
+   ============================================================================ */
+.app-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.app-header {
+    background-color: var(--gb-dark);
+    border-bottom: 2px solid var(--gb-light);
+    padding: var(--spacing-md);
+}
+
+.header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.app-title {
+    font-family: var(--font-pixel);
+    font-size: 16px;
+    color: var(--gb-lightest);
+    letter-spacing: 2px;
+}
+
+.header-status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.main-content {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 300px 1fr 300px;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.service-panel,
+.preview-panel {
+    min-height: 400px;
+}
+
+.chat-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.app-footer {
+    background-color: var(--gb-dark);
+    border-top: 2px solid var(--gb-light);
+    padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.footer-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--text-secondary);
+}
+
+.separator {
+    color: var(--gb-dark);
+}
+
+/* ============================================================================
+   Status Indicators
+   ============================================================================ */
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-family: var(--font-pixel);
+    font-size: 8px;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--gb-darkest);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.status-dot.status-healthy,
+.status-dot.status-online {
+    background-color: var(--gb-light);
+}
+
+.status-dot.status-degraded {
+    background-color: #f0ad4e; /* Amber warning */
+}
+
+.status-dot.status-unhealthy,
+.status-dot.status-offline {
+    background-color: #d9534f; /* Red error */
+}
+
+.status-dot.status-unknown {
+    background-color: var(--gb-dark);
+}
+
+/* ============================================================================
+   Panel Titles
+   ============================================================================ */
+.panel-title {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--gb-lightest);
+    margin-bottom: var(--spacing-md);
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--gb-light);
+    padding-bottom: var(--spacing-sm);
+}
+
+/* ============================================================================
+   Accessibility - Screen Reader Only
+   ============================================================================ */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* ============================================================================
+   Image Rendering - Pixelated (No Smoothing)
+   ============================================================================ */
+img {
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* ============================================================================
+   Responsive Layout - Mobile
+   ============================================================================ */
+@media (max-width: 1024px) {
+    .main-content {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
+    }
+    
+    .service-panel {
+        order: 1;
+    }
+    
+    .chat-panel {
+        order: 2;
+    }
+    
+    .preview-panel {
+        order: 3;
+    }
+}
+
+@media (max-width: 768px) {
+    .app-title {
+        font-size: 12px;
+    }
+    
+    .modal-content {
+        padding: var(--spacing-md);
+    }
+    
+    .barry-avatar {
+        width: 96px;
+        height: 96px;
+    }
+}
+
+/* ============================================================================
+   Animation - Smooth Transitions
+   ============================================================================ */
+* {
+    transition-property: background-color, border-color, color, transform, opacity;
+    transition-duration: 0.2s;
+    transition-timing-function: ease;
+}
+
+button,
+input {
+    transition-duration: 0.1s;
+}
+
+/* ============================================================================
+   Scrollbar Styling
+   ============================================================================ */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background-color: var(--gb-darkest);
+    border: 1px solid var(--gb-dark);
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--gb-dark);
+    border: 1px solid var(--gb-light);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--gb-light);
+}
