@@ -1,11 +1,12 @@
 /**
  * Batch Operations UI Component
  * Version: 3.2
- * 
+ *
  * Interface for CSV upload, character sets, and project templates.
  */
 
 import { apiCall } from '../utils/api.js';
+import { escapeHTML, sanitizeAttribute } from '../utils/sanitizer.js';
 
 class BatchOperations {
     constructor(containerId) {
@@ -168,18 +169,18 @@ class BatchOperations {
     
     renderBatchProgress(batchId, batch) {
         const progress = batch.completed / batch.total * 100;
-        
+
         return `
-            <div class="batch-progress" data-batch-id="${batchId}">
+            <div class="batch-progress" data-batch-id="${sanitizeAttribute(batchId)}">
                 <div class="batch-header">
-                    <span class="batch-name">${batch.name}</span>
+                    <span class="batch-name">${escapeHTML(batch.name)}</span>
                     <span class="batch-status">
-                        ${batch.completed}/${batch.total} 
+                        ${batch.completed}/${batch.total}
                         (${batch.failed} failed)
                     </span>
                 </div>
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${progress}%"></div>
+                    <div class="progress-fill" style="width: ${sanitizeAttribute(progress.toFixed(2))}%"></div>
                 </div>
             </div>
         `;
@@ -259,9 +260,13 @@ class BatchOperations {
             this.showNotification('Please select a valid CSV file', 'error');
             return;
         }
-        
+
         this.selectedCSVFile = file;
-        document.getElementById('csv-file-name').textContent = file.name;
+        // Use textContent for safe display
+        const fileNameEl = document.getElementById('csv-file-name');
+        if (fileNameEl) {
+            fileNameEl.textContent = file.name;
+        }
         document.getElementById('process-csv-btn').disabled = false;
     }
     
@@ -345,6 +350,7 @@ class BatchOperations {
     }
     
     async applyTemplate(templateName) {
+        // Use plain text for confirm dialog (safe from XSS)
         if (!confirm(`Generate all sprites from the ${templateName} template?`)) {
             return;
         }

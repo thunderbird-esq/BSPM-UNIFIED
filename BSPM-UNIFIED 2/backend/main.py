@@ -37,6 +37,32 @@ from pydantic import BaseModel, validator, Field
 from pydantic_settings import BaseSettings
 import uvicorn
 
+# Validation models
+from backend.models import (
+    SpriteType,
+    ExportFormat,
+    VariationType,
+    Department,
+    PromptRequest,
+    DelegationTask,
+    ExecutionRequest,
+    SpriteEditRequest,
+    SpriteDeleteRequest,
+    SpriteDuplicateRequest,
+    SpriteExportRequest,
+    KBSearchRequest,
+    DocumentUploadRequest,
+    SpriteGenerationParams,
+    RegenerateRequest,
+    BatchCSVRequest,
+    CharacterSetRequest,
+    ProjectTemplateRequest,
+    StylePresetRequest,
+    HealthResponse,
+    GenerationResult,
+    ErrorResponse
+)
+
 # Logging setup (MUST be first)
 from backend.logging_config import setup_logging, LoggerAdapter
 
@@ -133,98 +159,6 @@ os.makedirs(settings.project_docs_dir, exist_ok=True)
 
 
 # ============================================================================
-# Pydantic Models - Core
-# ============================================================================
-
-class PromptRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=1000)
-    session_id: Optional[str] = None
-    preset: Optional[str] = None
-
-
-class DelegationTask(BaseModel):
-    department: str
-    task: str
-    details: Optional[Dict[str, Any]] = {}
-
-
-class ExecutionRequest(BaseModel):
-    plan: List[DelegationTask]
-    session_id: str
-
-
-class HealthResponse(BaseModel):
-    backend: str
-    timestamp: str
-    uptime_seconds: float
-    services: Dict[str, Any]
-
-
-# ============================================================================
-# Pydantic Models - Medium-Priority Features
-# ============================================================================
-
-class StylePresetRequest(BaseModel):
-    preset_name: str
-
-
-class RegenerateRequest(BaseModel):
-    session_id: str
-    preset: Optional[str] = None
-
-
-class SpriteEditRequest(BaseModel):
-    sprite_id: str
-    name: Optional[str] = None
-    sprite_type: Optional[str] = None
-
-
-class SpriteDeleteRequest(BaseModel):
-    sprite_id: str
-    delete_file: bool = True
-
-
-class SpriteDuplicateRequest(BaseModel):
-    sprite_id: str
-    new_name: str
-    apply_variation: bool = False
-    variation_type: str = "hue_shift"
-
-
-class SpriteExportRequest(BaseModel):
-    sprite_id: str
-    export_format: str = "grid"
-    scale: int = 1
-
-
-class BatchCSVRequest(BaseModel):
-    csv_path: str
-    session_id: str
-
-
-class CharacterSetRequest(BaseModel):
-    character_name: str
-    style: str
-    session_id: str
-    include_actions: Optional[List[str]] = None
-
-
-class ProjectTemplateRequest(BaseModel):
-    template_name: str
-    session_id: str
-
-
-class DocumentUploadRequest(BaseModel):
-    filename: str
-    content: str
-
-
-class SearchTestRequest(BaseModel):
-    query: str
-    limit: int = 5
-
-
-# ============================================================================
 # Application State
 # ============================================================================
 
@@ -248,7 +182,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv('ALLOWED_ORIGINS', 'http://localhost:8000').split(','),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -504,6 +438,97 @@ async def root():
     return {"message": "GBStudio Automation Hub API", "version": "3.3"}
 
 
+async def _check_ollama_health() -> Dict[str, Any]:
+    """
+    Check Ollama service health and return status.
+
+    Returns:
+        Dictionary with Ollama health status and degraded flag
+    """
+    try:
+        start = time.time()
+        response = requests.get(settings.ollama_tags_url, timeout=3)
+        latency = round((time.time() - start) * 1000, 2)
+
+        if response.status_code == 200:
+            models = response.json().get("models", [])
+            model_names = [m["name"] for m in models]
+
+            health_data = {
+                "status": "healthy",
+                "latency_ms": latency,
+                "models_loaded": model_names,
+                "required_models": [settings.pm_model, settings.embedding_model],
+                "models_ok": all(m in model_names for m in [settings.pm_model, settings.embedding_model]),
+                "degraded": False
+            }
+
+            # Update metrics
+            metrics.update_service_health('ollama', healthy=True, latency_ms=latency)
+            return health_data
+        else:
+            health_data = {
+                "status": "degraded",
+                "latency_ms": latency,
+                "error": f"HTTP {response.status_code}",
+                "degraded": True
+            }
+            metrics.update_service_health('ollama', healthy=False)
+            return health_data
+
+    except requests.exceptions.RequestException as e:
+        health_data = {
+            "status": "unhealthy",
+            "error": str(e),
+            "degraded": True
+        }
+        metrics.update_service_health('ollama', healthy=False)
+        return health_data
+
+
+async def _check_comfyui_health() -> Dict[str, Any]:
+    """
+    Check ComfyUI service health and return status.
+
+    Returns:
+        Dictionary with ComfyUI health status and degraded flag
+    """
+    try:
+        start = time.time()
+        response = requests.get(f"{settings.comfyui_api_url}/system_stats", timeout=3)
+        latency = round((time.time() - start) * 1000, 2)
+
+        if response.status_code == 200:
+            stats = response.json()
+            health_data = {
+                "status": "healthy",
+                "latency_ms": latency,
+                "device": stats.get("devices", [{}])[0].get("type", "unknown"),
+                "queue_remaining": 0,
+                "degraded": False
+            }
+            metrics.update_service_health('comfyui', healthy=True, latency_ms=latency)
+            return health_data
+        else:
+            health_data = {
+                "status": "degraded",
+                "latency_ms": latency,
+                "error": f"HTTP {response.status_code}",
+                "degraded": True
+            }
+            metrics.update_service_health('comfyui', healthy=False)
+            return health_data
+
+    except requests.exceptions.RequestException as e:
+        health_data = {
+            "status": "unhealthy",
+            "error": str(e),
+            "degraded": True
+        }
+        metrics.update_service_health('comfyui', healthy=False)
+        return health_data
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Comprehensive health check for all services"""
@@ -513,75 +538,18 @@ async def health_check():
         "uptime_seconds": round(time.time() - START_TIME, 2),
         "services": {}
     }
-    
-    # Check Ollama
-    try:
-        start = time.time()
-        response = requests.get(settings.ollama_tags_url, timeout=3)
-        latency = round((time.time() - start) * 1000, 2)
-        
-        if response.status_code == 200:
-            models = response.json().get("models", [])
-            model_names = [m["name"] for m in models]
-            
-            health_status["services"]["ollama"] = {
-                "status": "healthy",
-                "latency_ms": latency,
-                "models_loaded": model_names,
-                "required_models": [settings.pm_model, settings.embedding_model],
-                "models_ok": all(m in model_names for m in [settings.pm_model, settings.embedding_model])
-            }
-            
-            # Update metrics
-            metrics.update_service_health('ollama', healthy=True, latency_ms=latency)
-        else:
-            health_status["services"]["ollama"] = {
-                "status": "degraded",
-                "latency_ms": latency,
-                "error": f"HTTP {response.status_code}"
-            }
-            health_status["backend"] = "degraded"
-            metrics.update_service_health('ollama', healthy=False)
-    
-    except requests.exceptions.RequestException as e:
-        health_status["services"]["ollama"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
+
+    # Check Ollama using helper function
+    ollama_health = await _check_ollama_health()
+    health_status["services"]["ollama"] = ollama_health
+    if ollama_health.get("degraded", False):
         health_status["backend"] = "degraded"
-        metrics.update_service_health('ollama', healthy=False)
-    
-    # Check ComfyUI
-    try:
-        start = time.time()
-        response = requests.get(f"{settings.comfyui_api_url}/system_stats", timeout=3)
-        latency = round((time.time() - start) * 1000, 2)
-        
-        if response.status_code == 200:
-            stats = response.json()
-            health_status["services"]["comfyui"] = {
-                "status": "healthy",
-                "latency_ms": latency,
-                "device": stats.get("devices", [{}])[0].get("type", "unknown"),
-                "queue_remaining": 0
-            }
-            metrics.update_service_health('comfyui', healthy=True, latency_ms=latency)
-        else:
-            health_status["services"]["comfyui"] = {
-                "status": "degraded",
-                "latency_ms": latency,
-                "error": f"HTTP {response.status_code}"
-            }
-            health_status["backend"] = "degraded"
-            metrics.update_service_health('comfyui', healthy=False)
-    
-    except requests.exceptions.RequestException as e:
-        health_status["services"]["comfyui"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
+
+    # Check ComfyUI using helper function
+    comfyui_health = await _check_comfyui_health()
+    health_status["services"]["comfyui"] = comfyui_health
+    if comfyui_health.get("degraded", False):
         health_status["backend"] = "degraded"
-        metrics.update_service_health('comfyui', healthy=False)
     
     # Check task queue
     queue_stats = task_queue.get_queue_stats()
@@ -1030,36 +998,38 @@ async def get_batch_status(batch_id: str, task_ids: List[str]):
 # ============================================================================
 
 @app.get("/api/v1/admin/kb/documents")
-async def list_kb_documents(filter_type: Optional[str] = None):
+async def list_kb_documents(filter_type: Optional[str] = None, api_key: str = Depends(verify_api_key)):
     """List all documents in knowledge base"""
     try:
+        logger.info(f"Admin operation: list_kb_documents by API key {api_key[:8]}...")
         from backend.memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         documents = admin.list_documents(filter_type=filter_type)
-        
+
         return {
             "total": len(documents),
             "documents": documents
         }
-        
+
     except Exception as e:
         logger.error(f"List KB documents failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/admin/kb/documents/{doc_id}")
-async def get_kb_document_details(doc_id: str):
+async def get_kb_document_details(doc_id: str, api_key: str = Depends(verify_api_key)):
     """Get full details for a specific document"""
     try:
+        logger.info(f"Admin operation: get_kb_document_details for {doc_id} by API key {api_key[:8]}...")
         from backend.memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         details = admin.get_document_details(doc_id)
-        
+
         if not details:
             raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
-        
+
         return details
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1068,14 +1038,15 @@ async def get_kb_document_details(doc_id: str):
 
 
 @app.post("/api/v1/admin/kb/reindex")
-async def reindex_document(source_file: str):
+async def reindex_document(source_file: str, api_key: str = Depends(verify_api_key)):
     """Re-index a specific document"""
     try:
+        logger.info(f"Admin operation: reindex_document {source_file} by API key {api_key[:8]}...")
         from backend.memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.reindex_document(source_file)
         return result
-        
+
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -1084,70 +1055,81 @@ async def reindex_document(source_file: str):
 
 
 @app.post("/api/v1/admin/kb/upload")
-async def upload_kb_document(request: DocumentUploadRequest):
+async def upload_kb_document(request: DocumentUploadRequest, api_key: str = Depends(verify_api_key)):
     """Upload new document to knowledge base"""
     try:
+        logger.info(f"Admin operation: upload_kb_document {request.filename} by API key {api_key[:8]}...")
         from backend.memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.upload_document(filename=request.filename, content=request.content)
         return result
-        
+
     except Exception as e:
         logger.error(f"Document upload failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.delete("/api/v1/admin/kb/documents")
-async def delete_kb_document(source_file: str):
+async def delete_kb_document(source_file: str, confirm: bool = False, api_key: str = Depends(verify_api_key)):
     """Delete document from knowledge base"""
     try:
+        logger.info(f"Admin operation: delete_kb_document {source_file} (confirm={confirm}) by API key {api_key[:8]}...")
+
+        if not confirm:
+            raise HTTPException(status_code=400, detail="Must set confirm=true to delete document")
+
         from backend.memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.delete_document(source_file)
         return result
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Document deletion failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/v1/admin/kb/search-test")
-async def test_kb_search(request: SearchTestRequest):
+async def test_kb_search(request: KBSearchRequest, api_key: str = Depends(verify_api_key)):
     """Test knowledge base search functionality"""
     try:
+        logger.info(f"Admin operation: test_kb_search for '{request.query}' by API key {api_key[:8]}...")
         from backend.memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         results = admin.test_search(query=request.query, limit=request.limit)
         return results
-        
+
     except Exception as e:
         logger.error(f"KB search test failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/admin/kb/stats")
-async def get_kb_statistics():
+async def get_kb_statistics(api_key: str = Depends(verify_api_key)):
     """Get knowledge base statistics"""
     try:
+        logger.info(f"Admin operation: get_kb_statistics by API key {api_key[:8]}...")
         from backend.memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         stats = admin.get_statistics()
         return stats
-        
+
     except Exception as e:
         logger.error(f"Get KB stats failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/v1/admin/kb/rebuild")
-async def rebuild_kb_index():
+async def rebuild_kb_index(api_key: str = Depends(verify_api_key)):
     """Rebuild entire knowledge base from source files"""
     try:
+        logger.info(f"Admin operation: rebuild_kb_index by API key {api_key[:8]}...")
         from backend.memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.rebuild_index()
         return result
-        
+
     except Exception as e:
         logger.error(f"KB rebuild failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

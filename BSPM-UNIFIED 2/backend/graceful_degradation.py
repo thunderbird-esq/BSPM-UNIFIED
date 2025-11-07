@@ -7,6 +7,7 @@ Allows system to continue operating with reduced functionality when services fai
 """
 
 import logging
+import threading
 import time
 from typing import Optional, List, Dict, Any, Callable
 from functools import wraps
@@ -25,45 +26,50 @@ class DegradedMode:
     """
     
     def __init__(self):
+        self._lock = threading.RLock()
         self.degraded_services: Dict[str, dict] = {}
     
     def mark_degraded(self, service: str, reason: str):
         """Mark a service as degraded."""
-        self.degraded_services[service] = {
-            'reason': reason,
-            'marked_at': time.time()
-        }
-        logger.warning(
-            f"Service {service} marked as degraded",
-            extra={'service': service, 'reason': reason}
-        )
+        with self._lock:
+            self.degraded_services[service] = {
+                'reason': reason,
+                'marked_at': time.time()
+            }
+            logger.warning(
+                f"Service {service} marked as degraded",
+                extra={'service': service, 'reason': reason}
+            )
     
     def mark_healthy(self, service: str):
         """Mark a service as healthy (remove from degraded list)."""
-        if service in self.degraded_services:
-            degraded_info = self.degraded_services.pop(service)
-            duration = time.time() - degraded_info['marked_at']
-            logger.info(
-                f"Service {service} recovered",
-                extra={
-                    'service': service,
-                    'degraded_duration_seconds': duration
-                }
-            )
+        with self._lock:
+            if service in self.degraded_services:
+                degraded_info = self.degraded_services.pop(service)
+                duration = time.time() - degraded_info['marked_at']
+                logger.info(
+                    f"Service {service} recovered",
+                    extra={
+                        'service': service,
+                        'degraded_duration_seconds': duration
+                    }
+                )
     
     def is_degraded(self, service: str) -> bool:
         """Check if a service is currently degraded."""
-        return service in self.degraded_services
+        with self._lock:
+            return service in self.degraded_services
     
     def get_status(self) -> Dict[str, Any]:
         """Get degradation status for all services."""
-        return {
-            service: {
-                'reason': info['reason'],
-                'duration_seconds': time.time() - info['marked_at']
+        with self._lock:
+            return {
+                service: {
+                    'reason': info['reason'],
+                    'duration_seconds': time.time() - info['marked_at']
+                }
+                for service, info in self.degraded_services.items()
             }
-            for service, info in self.degraded_services.items()
-        }
 
 
 # Global degraded mode tracker

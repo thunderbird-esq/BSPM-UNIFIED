@@ -1,11 +1,12 @@
 /**
  * Knowledge Base Admin UI Component
  * Version: 3.2
- * 
+ *
  * Dashboard for managing indexed documentation.
  */
 
 import { apiCall } from '../utils/api.js';
+import { sanitizeHTML, escapeHTML, sanitizeAttribute } from '../utils/sanitizer.js';
 
 class KBAdmin {
     constructor(containerId) {
@@ -117,30 +118,30 @@ class KBAdmin {
     
     renderDocumentCard(doc) {
         return `
-            <div class="doc-card" data-doc-id="${doc.doc_id}">
+            <div class="doc-card" data-doc-id="${sanitizeAttribute(doc.doc_id)}">
                 <div class="doc-header">
-                    <span class="doc-type-badge type-${doc.type}">${doc.type}</span>
-                    <span class="doc-source">${doc.source}</span>
+                    <span class="doc-type-badge type-${sanitizeAttribute(doc.type)}">${escapeHTML(doc.type)}</span>
+                    <span class="doc-source">${escapeHTML(doc.source)}</span>
                 </div>
                 <div class="doc-preview">
-                    ${doc.content_preview}
+                    ${escapeHTML(doc.content_preview)}
                 </div>
                 <div class="doc-meta">
-                    ${doc.chunk_index !== undefined ? 
-                        `<span>Chunk ${doc.chunk_index + 1}/${doc.total_chunks}</span>` : 
+                    ${doc.chunk_index !== undefined ?
+                        `<span>Chunk ${doc.chunk_index + 1}/${doc.total_chunks}</span>` :
                         ''
                     }
-                    <span>${doc.created_at}</span>
+                    <span>${escapeHTML(doc.created_at)}</span>
                 </div>
                 <div class="doc-actions">
-                    <button class="btn-sm btn-view" data-action="view" data-doc-id="${doc.doc_id}">
+                    <button class="btn-sm btn-view" data-action="view" data-doc-id="${sanitizeAttribute(doc.doc_id)}">
                         View
                     </button>
                     ${doc.type === 'project_doc' ? `
-                        <button class="btn-sm btn-reindex" data-action="reindex" data-source="${doc.source}">
+                        <button class="btn-sm btn-reindex" data-action="reindex" data-source="${sanitizeAttribute(doc.source)}">
                             Re-index
                         </button>
-                        <button class="btn-sm btn-delete" data-action="delete" data-source="${doc.source}">
+                        <button class="btn-sm btn-delete" data-action="delete" data-source="${sanitizeAttribute(doc.source)}">
                             Delete
                         </button>
                     ` : ''}
@@ -197,32 +198,32 @@ class KBAdmin {
     async showDocumentDetails(docId) {
         try {
             const doc = await apiCall(`/api/v1/admin/kb/documents/${docId}`, 'GET');
-            
+
             const modal = this.createModal('Document Details', `
                 <div class="doc-details">
                     <div class="detail-row">
-                        <strong>ID:</strong> ${doc.doc_id}
+                        <strong>ID:</strong> ${escapeHTML(doc.doc_id)}
                     </div>
                     <div class="detail-row">
-                        <strong>Type:</strong> ${doc.metadata.type}
+                        <strong>Type:</strong> ${escapeHTML(doc.metadata.type)}
                     </div>
                     <div class="detail-row">
-                        <strong>Source:</strong> ${doc.metadata.source_file || 'N/A'}
+                        <strong>Source:</strong> ${escapeHTML(doc.metadata.source_file || 'N/A')}
                     </div>
                     <div class="detail-row">
                         <strong>Length:</strong> ${doc.content_length} chars (${doc.word_count} words)
                     </div>
                     <div class="detail-content">
                         <strong>Content:</strong>
-                        <pre>${this.escapeHtml(doc.content)}</pre>
+                        <pre>${escapeHTML(doc.content)}</pre>
                     </div>
                     <div class="detail-metadata">
                         <strong>Metadata:</strong>
-                        <pre>${JSON.stringify(doc.metadata, null, 2)}</pre>
+                        <pre>${escapeHTML(JSON.stringify(doc.metadata, null, 2))}</pre>
                     </div>
                 </div>
             `);
-            
+
         } catch (error) {
             console.error('Failed to load document details:', error);
             this.showNotification('Failed to load document details', 'error');
@@ -230,6 +231,7 @@ class KBAdmin {
     }
     
     async reindexDocument(source) {
+        // Use plain text for confirm dialog (safe from XSS)
         if (!confirm(`Re-index ${source}? This will replace all existing chunks.`)) {
             return;
         }
@@ -251,6 +253,7 @@ class KBAdmin {
     }
     
     async deleteDocument(source) {
+        // Use plain text for confirm dialog (safe from XSS)
         if (!confirm(`Delete ${source}? This will remove all chunks and the source file.`)) {
             return;
         }
@@ -362,23 +365,23 @@ class KBAdmin {
     displaySearchResults(data) {
         const resultsDiv = document.getElementById('search-results');
         if (!resultsDiv) return;
-        
+
         if (data.results.length === 0) {
             resultsDiv.innerHTML = '<p class="no-results">No results found</p>';
             return;
         }
-        
+
         resultsDiv.innerHTML = `
-            <h4>Results for "${data.query}" (${data.num_results} found)</h4>
+            <h4>Results for "${escapeHTML(data.query)}" (${data.num_results} found)</h4>
             ${data.results.map((r, i) => `
                 <div class="search-result">
                     <div class="result-header">
                         <span class="result-rank">#${i + 1}</span>
                         <span class="result-distance">Distance: ${r.distance.toFixed(3)}</span>
                     </div>
-                    <div class="result-content">${this.escapeHtml(r.content)}</div>
+                    <div class="result-content">${escapeHTML(r.content)}</div>
                     <div class="result-meta">
-                        Type: ${r.metadata.type} | Source: ${r.metadata.source_file || 'N/A'}
+                        Type: ${escapeHTML(r.metadata.type)} | Source: ${escapeHTML(r.metadata.source_file || 'N/A')}
                     </div>
                 </div>
             `).join('')}
@@ -386,6 +389,7 @@ class KBAdmin {
     }
     
     async handleRebuildIndex() {
+        // Use plain text for confirm dialog (safe from XSS)
         if (!confirm('Rebuild entire knowledge base? This will re-index all source files.')) {
             return;
         }
@@ -420,24 +424,39 @@ class KBAdmin {
     createModal(title, content) {
         const modal = document.createElement('div');
         modal.className = 'modal-backdrop';
-        modal.innerHTML = `
-            <div class="modal-content kb-modal">
-                <div class="modal-header">
-                    <h2>${title}</h2>
-                    <button class="modal-close">✕</button>
-                </div>
-                <div class="modal-body">
-                    ${content}
-                </div>
-            </div>
-        `;
-        
+
+        // Create modal structure using DOM methods
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content kb-modal';
+
+        const modalHeader = document.createElement('div');
+        modalHeader.className = 'modal-header';
+
+        const modalTitle = document.createElement('h2');
+        modalTitle.textContent = title; // Safe from XSS
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'modal-close';
+        closeBtn.textContent = '✕';
+
+        modalHeader.appendChild(modalTitle);
+        modalHeader.appendChild(closeBtn);
+
+        const modalBody = document.createElement('div');
+        modalBody.className = 'modal-body';
+        // Content is expected to be sanitized by caller
+        modalBody.innerHTML = content;
+
+        modalContent.appendChild(modalHeader);
+        modalContent.appendChild(modalBody);
+        modal.appendChild(modalContent);
+
         document.body.appendChild(modal);
-        
+
         modal.querySelectorAll('.modal-close').forEach(btn => {
             btn.addEventListener('click', () => modal.remove());
         });
-        
+
         return modal;
     }
     
@@ -449,10 +468,10 @@ class KBAdmin {
         this.render();
     }
     
+    // Note: escapeHtml is now handled by the sanitizer utility
+    // This method is kept for backwards compatibility but delegates to escapeHTML
     escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        return escapeHTML(text);
     }
     
     showNotification(message, type = 'info') {

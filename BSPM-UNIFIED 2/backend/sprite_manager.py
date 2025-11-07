@@ -59,6 +59,36 @@ class SpriteManager:
         """Save project JSON."""
         with open(self.project_path, 'w') as f:
             json.dump(project_data, f, indent=2)
+
+    def _find_sprite_by_id(self, sprite_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Find sprite by ID using list comprehension.
+
+        Args:
+            sprite_id: Sprite ID to search for
+
+        Returns:
+            Sprite dictionary if found, None otherwise
+        """
+        project = self._load_project()
+        sprites = [s for s in project['spriteSheets'] if s['id'] == sprite_id]
+        return sprites[0] if sprites else None
+
+    def _find_sprite_index(self, sprite_id: str) -> tuple[Optional[int], Optional[Dict[str, Any]]]:
+        """
+        Find sprite and its index in the spriteSheets list.
+
+        Args:
+            sprite_id: Sprite ID to search for
+
+        Returns:
+            Tuple of (index, sprite) if found, (None, None) otherwise
+        """
+        project = self._load_project()
+        for i, sprite in enumerate(project['spriteSheets']):
+            if sprite['id'] == sprite_id:
+                return (i, sprite)
+        return (None, None)
     
     def edit_sprite(
         self,
@@ -68,27 +98,23 @@ class SpriteManager:
     ) -> Dict[str, Any]:
         """
         Edit sprite metadata.
-        
+
         Args:
             sprite_id: Sprite ID to edit
             name: New name (optional)
             sprite_type: New type (optional): actor, actor_animated, static, ui
-        
+
         Returns:
             Updated sprite entry
-        
+
         Raises:
             ValueError: If sprite not found or invalid type
         """
         project = self._load_project()
-        
-        # Find sprite
-        sprite = None
-        for s in project['spriteSheets']:
-            if s['id'] == sprite_id:
-                sprite = s
-                break
-        
+
+        # Find sprite using helper method
+        sprite = self._find_sprite_by_id(sprite_id)
+
         if not sprite:
             raise ValueError(f"Sprite {sprite_id} not found in project")
         
@@ -124,29 +150,28 @@ class SpriteManager:
     def delete_sprite(self, sprite_id: str, delete_file: bool = True) -> bool:
         """
         Delete sprite from project.
-        
+
         Args:
             sprite_id: Sprite ID to delete
             delete_file: If True, also delete PNG file from disk
-        
+
         Returns:
             True if deleted successfully
-        
+
         Raises:
             ValueError: If sprite not found
         """
         project = self._load_project()
-        
-        # Find and remove sprite
-        sprite = None
-        for i, s in enumerate(project['spriteSheets']):
-            if s['id'] == sprite_id:
-                sprite = project['spriteSheets'].pop(i)
-                break
-        
-        if not sprite:
+
+        # Find and remove sprite using helper method
+        index, sprite = self._find_sprite_index(sprite_id)
+
+        if sprite is None:
             raise ValueError(f"Sprite {sprite_id} not found in project")
-        
+
+        # Remove from project
+        project['spriteSheets'].pop(index)
+
         # Delete file if requested
         if delete_file:
             sprite_file = self.sprites_dir / sprite['filename']
@@ -176,28 +201,24 @@ class SpriteManager:
     ) -> Dict[str, Any]:
         """
         Duplicate sprite with optional visual variation.
-        
+
         Args:
             sprite_id: Source sprite ID
             new_name: Name for duplicated sprite
             apply_variation: If True, apply visual variation
             variation_type: Type of variation (hue_shift, brightness, contrast)
-        
+
         Returns:
             New sprite entry
-        
+
         Raises:
             ValueError: If sprite not found or invalid variation type
         """
         project = self._load_project()
-        
-        # Find source sprite
-        source_sprite = None
-        for s in project['spriteSheets']:
-            if s['id'] == sprite_id:
-                source_sprite = s
-                break
-        
+
+        # Find source sprite using helper method
+        source_sprite = self._find_sprite_by_id(sprite_id)
+
         if not source_sprite:
             raise ValueError(f"Sprite {sprite_id} not found in project")
         
@@ -298,30 +319,26 @@ class SpriteManager:
     ) -> str:
         """
         Export sprite as standalone PNG.
-        
+
         Args:
             sprite_id: Sprite ID to export
             output_path: Output file path
             export_format: Format (grid, strip, individual_frames)
             scale: Scale multiplier (1 = original size)
-        
+
         Returns:
             Path to exported file(s)
-        
+
         Export Formats:
             - grid: Keep as 3x3 grid (default)
             - strip: Convert to horizontal strip (8 frames in row)
             - individual_frames: Export each frame separately
         """
         project = self._load_project()
-        
-        # Find sprite
-        sprite = None
-        for s in project['spriteSheets']:
-            if s['id'] == sprite_id:
-                sprite = s
-                break
-        
+
+        # Find sprite using helper method
+        sprite = self._find_sprite_by_id(sprite_id)
+
         if not sprite:
             raise ValueError(f"Sprite {sprite_id} not found in project")
         
@@ -452,24 +469,19 @@ class SpriteManager:
     def get_sprite_info(self, sprite_id: str) -> Dict[str, Any]:
         """
         Get detailed information about a sprite.
-        
+
         Args:
             sprite_id: Sprite ID
-        
+
         Returns:
             Dictionary with sprite metadata and file info
-        
+
         Raises:
             ValueError: If sprite not found
         """
-        project = self._load_project()
-        
-        sprite = None
-        for s in project['spriteSheets']:
-            if s['id'] == sprite_id:
-                sprite = s
-                break
-        
+        # Find sprite using helper method
+        sprite = self._find_sprite_by_id(sprite_id)
+
         if not sprite:
             raise ValueError(f"Sprite {sprite_id} not found")
         

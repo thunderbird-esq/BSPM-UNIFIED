@@ -9,9 +9,12 @@ Stores conversation history with metadata for context retrieval
 import os
 import json
 import hashlib
+import logging
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 class ConversationTurn(BaseModel):
@@ -55,7 +58,8 @@ class ConversationMemory:
                         data = json.loads(line)
                         turn = ConversationTurn(**data)
                         self.turns.append(turn)
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
+                        logger.warning("Corrupted conversation turn", extra={'line_preview': line[:100], 'error': str(e)})
                         continue
     
     def add_turn(

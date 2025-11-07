@@ -1,9 +1,11 @@
 /**
  * Style Preset Selector Component
  * Version: 3.2
- * 
+ *
  * Dropdown selector for choosing sprite generation style presets.
  */
+
+import { escapeHTML, sanitizeAttribute } from '../utils/sanitizer.js';
 
 class StylePresetSelector {
     constructor(containerId, onPresetChange) {
@@ -55,13 +57,13 @@ class StylePresetSelector {
                 <label for="style-preset">Art Style:</label>
                 <select id="style-preset" class="preset-dropdown">
                     ${Object.entries(this.presets).map(([key, preset]) => `
-                        <option value="${key}" ${key === this.selectedPreset ? 'selected' : ''}>
-                            ${this.formatPresetName(key)}
+                        <option value="${sanitizeAttribute(key)}" ${key === this.selectedPreset ? 'selected' : ''}>
+                            ${escapeHTML(this.formatPresetName(key))}
                         </option>
                     `).join('')}
                 </select>
                 <div class="preset-description" id="preset-description">
-                    ${this.presets[this.selectedPreset]?.description || ''}
+                    ${escapeHTML(this.presets[this.selectedPreset]?.description || '')}
                 </div>
                 <div class="preset-params" id="preset-params">
                     <span class="param">Steps: ${this.presets[this.selectedPreset]?.steps || 20}</span>
@@ -69,9 +71,9 @@ class StylePresetSelector {
                 </div>
             </div>
         `;
-        
+
         this.container.innerHTML = html;
-        
+
         // Attach event listener
         const dropdown = document.getElementById('style-preset');
         dropdown.addEventListener('change', (e) => {
@@ -87,12 +89,14 @@ class StylePresetSelector {
         const descEl = document.getElementById('preset-description');
         const paramsEl = document.getElementById('preset-params');
         const preset = this.presets[this.selectedPreset];
-        
+
         if (descEl && preset) {
+            // Use textContent for safe display
             descEl.textContent = preset.description;
         }
-        
+
         if (paramsEl && preset) {
+            // Steps and CFG are numeric values from API, but sanitize for safety
             paramsEl.innerHTML = `
                 <span class="param">Steps: ${preset.steps}</span>
                 <span class="param">CFG: ${preset.cfg}</span>

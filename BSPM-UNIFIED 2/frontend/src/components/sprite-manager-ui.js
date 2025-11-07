@@ -1,11 +1,12 @@
 /**
  * Sprite Manager UI Component
  * Version: 3.2
- * 
+ *
  * UI for editing, deleting, duplicating, and exporting sprites.
  */
 
 import { apiCall } from '../utils/api.js';
+import { sanitizeHTML, escapeHTML, sanitizeAttribute } from '../utils/sanitizer.js';
 
 class SpriteManager {
     constructor(containerId) {
@@ -40,10 +41,10 @@ class SpriteManager {
                 <div class="manager-header">
                     <h2>Sprite Manager</h2>
                     <div class="manager-controls">
-                        <input type="text" 
-                               id="sprite-search" 
-                               placeholder="Search sprites..." 
-                               value="${this.searchQuery}">
+                        <input type="text"
+                               id="sprite-search"
+                               placeholder="Search sprites..."
+                               value="${sanitizeAttribute(this.searchQuery)}">
                         <select id="sprite-filter">
                             <option value="">All Types</option>
                             <option value="actor_animated" ${this.filterType === 'actor_animated' ? 'selected' : ''}>Actor Animated</option>
@@ -69,33 +70,33 @@ class SpriteManager {
     
     renderSpriteCard(sprite) {
         return `
-            <div class="sprite-card" data-sprite-id="${sprite.id}">
+            <div class="sprite-card" data-sprite-id="${sanitizeAttribute(sprite.id)}">
                 <div class="sprite-preview">
-                    <img src="/project_files/assets/sprites/${sprite.filename}" 
-                         alt="${sprite.name}"
+                    <img src="/project_files/assets/sprites/${sanitizeAttribute(sprite.filename)}"
+                         alt="${sanitizeAttribute(sprite.name)}"
                          onerror="this.src='/frontend/assets/placeholder.png'">
                 </div>
-                
+
                 <div class="sprite-info">
-                    <h3 class="sprite-name">${sprite.name}</h3>
+                    <h3 class="sprite-name">${escapeHTML(sprite.name)}</h3>
                     <div class="sprite-meta">
-                        <span class="meta-item">Type: ${sprite.type}</span>
+                        <span class="meta-item">Type: ${escapeHTML(sprite.type)}</span>
                         <span class="meta-item">Frames: ${sprite.numFrames}</span>
                         <span class="meta-item">${sprite.canvasWidth}×${sprite.canvasHeight}</span>
                     </div>
                 </div>
-                
+
                 <div class="sprite-actions">
-                    <button class="btn-icon btn-edit" data-action="edit" data-sprite-id="${sprite.id}" title="Edit">
+                    <button class="btn-icon btn-edit" data-action="edit" data-sprite-id="${sanitizeAttribute(sprite.id)}" title="Edit">
                         ✏️
                     </button>
-                    <button class="btn-icon btn-duplicate" data-action="duplicate" data-sprite-id="${sprite.id}" title="Duplicate">
+                    <button class="btn-icon btn-duplicate" data-action="duplicate" data-sprite-id="${sanitizeAttribute(sprite.id)}" title="Duplicate">
                         📋
                     </button>
-                    <button class="btn-icon btn-export" data-action="export" data-sprite-id="${sprite.id}" title="Export">
+                    <button class="btn-icon btn-export" data-action="export" data-sprite-id="${sanitizeAttribute(sprite.id)}" title="Export">
                         💾
                     </button>
-                    <button class="btn-icon btn-delete" data-action="delete" data-sprite-id="${sprite.id}" title="Delete">
+                    <button class="btn-icon btn-delete" data-action="delete" data-sprite-id="${sanitizeAttribute(sprite.id)}" title="Delete">
                         🗑️
                     </button>
                 </div>
@@ -157,7 +158,7 @@ class SpriteManager {
             <form id="edit-sprite-form">
                 <div class="form-group">
                     <label for="edit-name">Name:</label>
-                    <input type="text" id="edit-name" value="${sprite.name}" required>
+                    <input type="text" id="edit-name" value="${sanitizeAttribute(sprite.name)}" required>
                 </div>
                 <div class="form-group">
                     <label for="edit-type">Type:</label>
@@ -209,7 +210,7 @@ class SpriteManager {
             <form id="duplicate-sprite-form">
                 <div class="form-group">
                     <label for="duplicate-name">New Name:</label>
-                    <input type="text" id="duplicate-name" value="${sprite.name} (Copy)" required>
+                    <input type="text" id="duplicate-name" value="${sanitizeAttribute(sprite.name)} (Copy)" required>
                 </div>
                 <div class="form-group">
                     <label>
@@ -320,7 +321,8 @@ class SpriteManager {
     async handleDelete(spriteId) {
         const sprite = this.sprites.find(s => s.id === spriteId);
         if (!sprite) return;
-        
+
+        // Use plain text for confirm dialog (safe from XSS)
         if (!confirm(`Delete "${sprite.name}"? This cannot be undone.`)) {
             return;
         }
@@ -342,24 +344,39 @@ class SpriteManager {
     createModal(title, content) {
         const modal = document.createElement('div');
         modal.className = 'modal-backdrop';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>${title}</h2>
-                    <button class="modal-close">✕</button>
-                </div>
-                <div class="modal-body">
-                    ${content}
-                </div>
-            </div>
-        `;
-        
+
+        // Create modal structure using DOM methods
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+
+        const modalHeader = document.createElement('div');
+        modalHeader.className = 'modal-header';
+
+        const modalTitle = document.createElement('h2');
+        modalTitle.textContent = title; // Safe from XSS
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'modal-close';
+        closeBtn.textContent = '✕';
+
+        modalHeader.appendChild(modalTitle);
+        modalHeader.appendChild(closeBtn);
+
+        const modalBody = document.createElement('div');
+        modalBody.className = 'modal-body';
+        // Content is expected to be sanitized by caller
+        modalBody.innerHTML = content;
+
+        modalContent.appendChild(modalHeader);
+        modalContent.appendChild(modalBody);
+        modal.appendChild(modalContent);
+
         document.body.appendChild(modal);
-        
+
         modal.querySelectorAll('.modal-close').forEach(btn => {
             btn.addEventListener('click', () => modal.remove());
         });
-        
+
         return modal;
     }
     

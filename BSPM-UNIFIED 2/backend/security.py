@@ -9,6 +9,7 @@ Provides security features for production deployment.
 import logging
 import hashlib
 import secrets
+import threading
 import time
 from typing import Optional, Dict
 from pathlib import Path
@@ -93,79 +94,83 @@ class RateLimiter:
         max_requests: int = 10,
         time_window: float = 60.0  # seconds
     ):
+        self._lock = threading.RLock()
         self.max_requests = max_requests
         self.time_window = time_window
-        
+
         # bucket_id -> (token_count, last_refill_time)
         self.buckets: Dict[str, tuple] = {}
     
     def is_allowed(self, bucket_id: str) -> bool:
         """
         Check if request is allowed for given bucket_id.
-        
+
         Args:
             bucket_id: Identifier (session_id or IP address)
-        
+
         Returns:
             True if request allowed, False if rate limit exceeded
         """
-        current_time = time.time()
-        
-        # Get or create bucket
-        if bucket_id not in self.buckets:
-            self.buckets[bucket_id] = (self.max_requests - 1, current_time)
-            return True
-        
-        tokens, last_refill = self.buckets[bucket_id]
-        
-        # Refill tokens based on elapsed time
-        elapsed = current_time - last_refill
-        refill_amount = (elapsed / self.time_window) * self.max_requests
-        tokens = min(self.max_requests, tokens + refill_amount)
-        
-        # Check if request allowed
-        if tokens >= 1:
-            self.buckets[bucket_id] = (tokens - 1, current_time)
-            return True
-        else:
-            self.buckets[bucket_id] = (tokens, current_time)
-            logger.warning(
-                f"Rate limit exceeded for {bucket_id}",
-                extra={
-                    'bucket_id': bucket_id,
-                    'max_requests': self.max_requests,
-                    'time_window': self.time_window
-                }
-            )
-            return False
+        with self._lock:
+            current_time = time.time()
+
+            # Get or create bucket
+            if bucket_id not in self.buckets:
+                self.buckets[bucket_id] = (self.max_requests - 1, current_time)
+                return True
+
+            tokens, last_refill = self.buckets[bucket_id]
+
+            # Refill tokens based on elapsed time
+            elapsed = current_time - last_refill
+            refill_amount = (elapsed / self.time_window) * self.max_requests
+            tokens = min(self.max_requests, tokens + refill_amount)
+
+            # Check if request allowed
+            if tokens >= 1:
+                self.buckets[bucket_id] = (tokens - 1, current_time)
+                return True
+            else:
+                self.buckets[bucket_id] = (tokens, current_time)
+                logger.warning(
+                    f"Rate limit exceeded for {bucket_id}",
+                    extra={
+                        'bucket_id': bucket_id,
+                        'max_requests': self.max_requests,
+                        'time_window': self.time_window
+                    }
+                )
+                return False
     
     def get_remaining(self, bucket_id: str) -> int:
         """Get remaining requests for bucket_id."""
-        if bucket_id not in self.buckets:
-            return self.max_requests
-        
-        tokens, last_refill = self.buckets[bucket_id]
-        current_time = time.time()
-        elapsed = current_time - last_refill
-        refill_amount = (elapsed / self.time_window) * self.max_requests
-        tokens = min(self.max_requests, tokens + refill_amount)
-        
-        return int(tokens)
+        with self._lock:
+            if bucket_id not in self.buckets:
+                return self.max_requests
+
+            tokens, last_refill = self.buckets[bucket_id]
+            current_time = time.time()
+            elapsed = current_time - last_refill
+            refill_amount = (elapsed / self.time_window) * self.max_requests
+            tokens = min(self.max_requests, tokens + refill_amount)
+
+            return int(tokens)
     
     def cleanup_old_buckets(self, max_age: float = 3600):
         """Remove buckets that haven't been used in max_age seconds."""
-        current_time = time.time()
-        to_remove = [
-            bucket_id
-            for bucket_id, (_, last_refill) in self.buckets.items()
-            if current_time - last_refill > max_age
-        ]
-        
-        for bucket_id in to_remove:
-            del self.buckets[bucket_id]
-        
-        if to_remove:
-            logger.debug(f"Cleaned up {len(to_remove)} old rate limit buckets")
+        with self._lock:
+            current_time = time.time()
+            to_remove = [
+                bucket_id
+                for bucket_id, (_, last_refill) in self.buckets.items()
+                if current_time - last_refill > max_age
+            ]
+
+            for bucket_id in to_remove:
+                del self.buckets[bucket_id]
+
+            if to_remove:
+                logger.debug(f"Cleaned up {len(to_remove)} old rate limit buckets")
 
 
 class InputSanitizer:

@@ -10,6 +10,9 @@ import asyncio
 import aiohttp
 from typing import Dict, List, Optional
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def execute_workflow(
@@ -94,10 +97,11 @@ async def execute_workflow(
                                 "frame_paths": frame_paths,
                                 "preview_url": preview_url
                             }
-        
-        except aiohttp.ClientError:
-            pass  # Continue polling
-        
+
+        except aiohttp.ClientError as e:
+            logger.debug("Polling error (retrying)", extra={'error': str(e), 'prompt_id': prompt_id})
+            await asyncio.sleep(0.5)
+
         await asyncio.sleep(2)  # Poll every 2 seconds
     
     # Timeout
