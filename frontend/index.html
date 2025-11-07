@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/frontend/styles/chat.css">
     <link rel="stylesheet" href="/frontend/styles/medium-priority.css">
     <link rel="stylesheet" href="/frontend/styles/integration.css">
+    <link rel="stylesheet" href="/frontend/styles/aseprite-panel.css">
     
     
     <!-- Font -->
@@ -38,6 +39,7 @@
                 <button id="toggle-sprite-manager" class="btn-icon">🖼️</button>
                 <button id="toggle-batch-ops" class="btn-icon">📦</button>
                 <button id="toggle-kb-admin" class="btn-icon">📚</button>
+                <button id="toggle-aseprite" class="btn-icon" onclick="window.asepriteEditor && window.asepriteEditor.togglePanel()">🎨</button>
             </div>
         </header>
         
@@ -81,8 +83,12 @@
             <span id="queue-status">Queue: 0 pending</span>
         </footer>
     </div>
-    
+
+    <!-- Aseprite Editor Panel -->
+    <div id="aseprite-panel" class="side-panel"></div>
+
     <!-- Scripts (ES6 modules) -->
     <script type="module" src="/frontend/src/main.js"></script>
+    <script src="/frontend/src/components/aseprite-editor.js"></script>
 </body>
 </html>

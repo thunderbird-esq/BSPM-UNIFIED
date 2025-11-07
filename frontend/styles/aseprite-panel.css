@@ -1,0 +1,554 @@
+/**
+ * Aseprite Editor Panel Styles
+ * Version: 1.0
+ *
+ * Game Boy DMG Aesthetic matching css-pokemon-gameboy.css
+ * Color Palette: Original Game Boy (DMG)
+ * - #0f380f (darkest)
+ * - #306230 (dark)
+ * - #8bac0f (light)
+ * - #9bbc0f (lightest)
+ */
+
+/* ============================================================================
+   Panel Container - Slide-in from Right
+   ============================================================================ */
+#aseprite-panel {
+    position: fixed;
+    top: 0;
+    right: -450px;
+    width: 450px;
+    height: 100vh;
+    background-color: var(--gb-dark);
+    border-left: 4px solid var(--gb-light);
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    transition: right 0.3s ease-in-out;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+#aseprite-panel.open {
+    right: 0;
+}
+
+.aseprite-panel-inner {
+    padding: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    min-height: 100vh;
+}
+
+/* ============================================================================
+   Panel Header
+   ============================================================================ */
+.aseprite-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md);
+    background-color: var(--gb-darkest);
+    border: 2px solid var(--gb-light);
+    border-radius: var(--border-radius);
+    margin-bottom: var(--spacing-md);
+}
+
+.header-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.title-icon {
+    font-size: 20px;
+}
+
+.aseprite-header h2 {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    color: var(--gb-lightest);
+    letter-spacing: 2px;
+    margin: 0;
+}
+
+.close-panel-btn {
+    background: none;
+    border: 2px solid var(--gb-light);
+    color: var(--gb-light);
+    font-size: 16px;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    border-radius: var(--border-radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.close-panel-btn:hover {
+    background-color: var(--gb-light);
+    color: var(--gb-darkest);
+    transform: scale(1.1);
+}
+
+/* ============================================================================
+   Health Status Bar
+   ============================================================================ */
+.health-status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--gb-darkest);
+    border: 2px solid var(--gb-dark);
+    border-radius: var(--border-radius);
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid var(--gb-darkest);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot.status-healthy {
+    background-color: var(--gb-light);
+    box-shadow: 0 0 8px var(--gb-light);
+}
+
+.status-dot.status-degraded {
+    background-color: #f0ad4e;
+    box-shadow: 0 0 8px #f0ad4e;
+}
+
+.status-dot.status-unhealthy {
+    background-color: #d9534f;
+    box-shadow: 0 0 8px #d9534f;
+}
+
+.status-dot.status-unknown {
+    background-color: var(--gb-dark);
+}
+
+.status-text {
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    color: var(--text-primary);
+    text-transform: uppercase;
+}
+
+.refresh-btn {
+    font-size: 10px !important;
+    padding: 4px 8px !important;
+}
+
+/* ============================================================================
+   Section Styling
+   ============================================================================ */
+.file-browser-section,
+.current-file-section,
+.import-section,
+.info-section {
+    background-color: var(--gb-darkest);
+    border: 2px solid var(--gb-dark);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 2px solid var(--gb-dark);
+}
+
+.section-header h3 {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--gb-lightest);
+    letter-spacing: 1px;
+    margin: 0;
+}
+
+/* ============================================================================
+   File Browser
+   ============================================================================ */
+.file-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    max-height: 300px;
+    overflow-y: auto;
+    padding: var(--spacing-xs);
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background-color: var(--gb-dark);
+    border: 2px solid var(--gb-dark);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.file-item:hover {
+    border-color: var(--gb-light);
+    background-color: var(--gb-darkest);
+    transform: translateX(4px);
+}
+
+.file-item.selected {
+    background-color: var(--gb-light);
+    border-color: var(--gb-lightest);
+}
+
+.file-item.selected .file-icon,
+.file-item.selected .file-name,
+.file-item.selected .file-meta {
+    color: var(--gb-darkest);
+}
+
+.file-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-meta {
+    display: flex;
+    gap: var(--spacing-xs);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.file-meta span {
+    white-space: nowrap;
+}
+
+/* Loading and empty states */
+.loading-state,
+.empty-state,
+.error-state {
+    padding: var(--spacing-lg);
+    text-align: center;
+    color: var(--text-secondary);
+    font-family: var(--font-pixel);
+    font-size: 9px;
+}
+
+.empty-state p:first-child,
+.error-state p:first-child {
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.empty-hint,
+.error-hint {
+    font-size: 8px;
+    color: var(--text-secondary);
+    margin-top: var(--spacing-xs);
+}
+
+/* ============================================================================
+   Current File Details
+   ============================================================================ */
+.file-details {
+    background-color: var(--gb-dark);
+    border: 2px solid var(--gb-dark);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--spacing-xs) 0;
+    border-bottom: 1px solid var(--gb-darkest);
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.detail-value {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-primary);
+    text-align: right;
+}
+
+/* ============================================================================
+   File Actions
+   ============================================================================ */
+.file-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.file-actions .pixel-button {
+    width: 100%;
+    justify-content: center;
+}
+
+/* ============================================================================
+   Import Form
+   ============================================================================ */
+.import-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.form-group label {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.pixel-input {
+    width: 100%;
+    padding: var(--spacing-sm);
+    background-color: var(--gb-dark);
+    border: 2px solid var(--gb-light);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.pixel-input:focus {
+    border-color: var(--gb-lightest);
+    background-color: var(--gb-darkest);
+    box-shadow: inset 0 0 0 1px var(--gb-light);
+}
+
+.pixel-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+.full-width {
+    width: 100%;
+}
+
+/* ============================================================================
+   Status Messages
+   ============================================================================ */
+.status-messages {
+    position: fixed;
+    bottom: 20px;
+    right: 470px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    z-index: 1001;
+    max-width: 300px;
+    pointer-events: none;
+}
+
+#aseprite-panel.open ~ .status-messages,
+#aseprite-panel.open + * .status-messages {
+    right: 470px;
+}
+
+.status-message {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 2px solid var(--gb-light);
+    border-radius: var(--border-radius);
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--text-primary);
+    opacity: 0;
+    transform: translateX(20px);
+    transition: all 0.3s ease;
+    pointer-events: auto;
+}
+
+.status-message.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.status-message.status-info {
+    background-color: var(--gb-dark);
+    border-color: var(--gb-light);
+}
+
+.status-message.status-success {
+    background-color: var(--gb-light);
+    color: var(--gb-darkest);
+    border-color: var(--gb-lightest);
+}
+
+.status-message.status-error {
+    background-color: #d9534f;
+    color: white;
+    border-color: #a94442;
+}
+
+/* ============================================================================
+   Info Section
+   ============================================================================ */
+.info-box {
+    padding: var(--spacing-sm);
+    background-color: var(--gb-dark);
+    border: 2px solid var(--gb-light);
+    border-radius: var(--border-radius);
+}
+
+.info-text {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.info-text strong {
+    color: var(--text-primary);
+}
+
+/* ============================================================================
+   Custom Scrollbar for File List
+   ============================================================================ */
+.file-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.file-list::-webkit-scrollbar-track {
+    background-color: var(--gb-darkest);
+    border-radius: var(--border-radius);
+}
+
+.file-list::-webkit-scrollbar-thumb {
+    background-color: var(--gb-dark);
+    border: 1px solid var(--gb-light);
+    border-radius: var(--border-radius);
+}
+
+.file-list::-webkit-scrollbar-thumb:hover {
+    background-color: var(--gb-light);
+}
+
+/* ============================================================================
+   Responsive Design - Mobile
+   ============================================================================ */
+@media (max-width: 768px) {
+    #aseprite-panel {
+        width: 100vw;
+        right: -100vw;
+    }
+
+    #aseprite-panel.open {
+        right: 0;
+    }
+
+    .status-messages {
+        right: 20px;
+        max-width: calc(100vw - 40px);
+    }
+
+    #aseprite-panel.open ~ .status-messages {
+        display: none;
+    }
+}
+
+/* ============================================================================
+   Animation Keyframes
+   ============================================================================ */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(0.9);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ============================================================================
+   Button Overrides for Panel Context
+   ============================================================================ */
+.aseprite-panel-inner .pixel-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+}
+
+.aseprite-panel-inner .pixel-button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.aseprite-panel-inner .pixel-button.primary {
+    background-color: var(--gb-light);
+    color: var(--gb-darkest);
+    border-color: var(--gb-lightest);
+    font-weight: bold;
+}
+
+.aseprite-panel-inner .pixel-button.primary:hover:not(:disabled) {
+    background-color: var(--gb-lightest);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
