@@ -52,6 +52,14 @@ python-multipart==0.0.6   # Form data parsing (for file uploads)
 python-dotenv==1.0.0      # .env file support for local development
 
 # ============================================================================
+# Multi-Agent Memory System
+# ============================================================================
+sentence-transformers==2.2.2  # Semantic embeddings for memory search
+neo4j==5.14.1             # Graph database for knowledge management
+torch==2.1.1              # PyTorch (required by sentence-transformers)
+transformers==4.35.2      # Transformer models (required by sentence-transformers)
+
+# ============================================================================
 # Testing (optional, for development)
 # ============================================================================
 pytest==7.4.3             # Testing framework

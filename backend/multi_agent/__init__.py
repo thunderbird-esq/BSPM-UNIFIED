@@ -74,16 +74,28 @@ from .types import (
     SystemMetrics,
 )
 
-# Memory system imports (commented out until dependencies are installed)
-# from .memory import AgentMemory
-# from .shared_memory import SharedMemory
-# from .embeddings import (
-#     create_embedding,
-#     cosine_similarity,
-#     batch_embeddings,
-#     semantic_search,
-#     get_embedding_model,
-# )
+# Memory system imports
+try:
+    from .memory import AgentMemory
+    from .shared_memory import SharedMemory
+    from .embeddings import (
+        create_embedding,
+        cosine_similarity,
+        batch_embeddings,
+        semantic_search,
+        get_embedding_model,
+    )
+    _memory_available = True
+except ImportError:
+    # Dependencies not installed yet
+    _memory_available = False
+    AgentMemory = None
+    SharedMemory = None
+    create_embedding = None
+    cosine_similarity = None
+    batch_embeddings = None
+    semantic_search = None
+    get_embedding_model = None
 
 __version__ = "0.1.0"
 
@@ -92,14 +104,14 @@ __all__ = [
     "StudioAgent",
     "Department",
 
-    # Memory system (commented out until dependencies are installed)
-    # "AgentMemory",
-    # "SharedMemory",
-    # "create_embedding",
-    # "cosine_similarity",
-    # "batch_embeddings",
-    # "semantic_search",
-    # "get_embedding_model",
+    # Memory system
+    "AgentMemory",
+    "SharedMemory",
+    "create_embedding",
+    "cosine_similarity",
+    "batch_embeddings",
+    "semantic_search",
+    "get_embedding_model",
 
     # Enums
     "AgentRole",
