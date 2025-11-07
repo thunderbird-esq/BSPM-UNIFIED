@@ -1,0 +1,66 @@
+# macOS metadata
+__MACOSX/
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets
+app/secrets/
+*.key
+*.pem
+.env
+.env.local
+
+# Logs
+*.log
+app/logs/
+
+# Docker
+*.pid
+
+# Temporary files
+temp_outputs/
+*.tmp
+
+# Node modules (if any)
+node_modules/
+
+# Compressed files (keep source, not archives)
+*.zip
+*.tar.gz
+*.rar
+
+# OS files
+Thumbs.db
