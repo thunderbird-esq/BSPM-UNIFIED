@@ -1,0 +1,202 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors"
+    },
+    "_meta": {
+      "title": "Load SDXL Base Model"
+    }
+  },
+  "2": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "lora_name": "pixel-art-xl-v1.1.safetensors",
+      "strength_model": 1.0,
+      "strength_clip": 1.0,
+      "model": ["1", 0],
+      "clip": ["1", 1]
+    },
+    "_meta": {
+      "title": "Apply Pixel Art LoRA",
+      "note": "Trained on 32x32 Game Boy style sprites"
+    }
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "knight in armor, pixel art, sprite sheet, 8 animation frames, game boy color, character turnaround, multiple poses in grid layout, 32x32 pixels per frame, idle walk attack hurt",
+      "clip": ["2", 1]
+    },
+    "_meta": {
+      "title": "Encode Positive Prompt"
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "blurry, photo realistic, 3d render, different characters, inconsistent style, wrong colors, modern graphics, high resolution, detailed textures, gradient, anti-aliasing",
+      "clip": ["2", 1]
+    },
+    "_meta": {
+      "title": "Encode Negative Prompt"
+    }
+  },
+  "5": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 256,
+      "height": 256,
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "Create 256x256 Latent",
+      "note": "Will contain 8 frames in grid layout"
+    }
+  },
+  "6": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 42,
+      "steps": 20,
+      "cfg": 8.0,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "karras",
+      "denoise": 1.0,
+      "model": ["2", 0],
+      "positive": ["3", 0],
+      "negative": ["4", 0],
+      "latent_image": ["5", 0]
+    },
+    "_meta": {
+      "title": "Sample Latent",
+      "note": "euler_ancestral: CPU-friendly, good for pixel art. karras: Stable noise schedule. steps=20: Reduced from 25 for Intel Mac performance. cfg=8.0: Sweet spot for sprite sheet consistency"
+    }
+  },
+  "7": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["6", 0],
+      "vae": ["1", 2]
+    },
+    "_meta": {
+      "title": "Decode to Image"
+    }
+  },
+  "8": {
+    "class_type": "DynamicTileSplit",
+    "inputs": {
+      "image": ["7", 0],
+      "tile_width": 32,
+      "tile_height": 32,
+      "overlap": 0,
+      "offset": 0
+    },
+    "_meta": {
+      "title": "Split into 32x32 Tiles",
+      "note": "Requires ComfyUI-Impact-Pack custom node"
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sprite_frame_0",
+      "images": ["8", 0, 0]
+    },
+    "_meta": {
+      "title": "Save Frame 0 (Idle)"
+    }
+  },
+  "10": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sprite_frame_1",
+      "images": ["8", 0, 1]
+    },
+    "_meta": {
+      "title": "Save Frame 1 (Walk 1)"
+    }
+  },
+  "11": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sprite_frame_2",
+      "images": ["8", 0, 2]
+    },
+    "_meta": {
+      "title": "Save Frame 2 (Walk 2)"
+    }
+  },
+  "12": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sprite_frame_3",
+      "images": ["8", 0, 3]
+    },
+    "_meta": {
+      "title": "Save Frame 3 (Walk 3)"
+    }
+  },
+  "13": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sprite_frame_4",
+      "images": ["8", 0, 4]
+    },
+    "_meta": {
+      "title": "Save Frame 4 (Walk 4)"
+    }
+  },
+  "14": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sprite_frame_5",
+      "images": ["8", 0, 5]
+    },
+    "_meta": {
+      "title": "Save Frame 5 (Attack 1)"
+    }
+  },
+  "15": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sprite_frame_6",
+      "images": ["8", 0, 6]
+    },
+    "_meta": {
+      "title": "Save Frame 6 (Attack 2)"
+    }
+  },
+  "16": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sprite_frame_7",
+      "images": ["8", 0, 7]
+    },
+    "_meta": {
+      "title": "Save Frame 7 (Hurt)"
+    }
+  },
+  "17": {
+    "class_type": "DynamicTileMerge",
+    "inputs": {
+      "images": ["8", 0],
+      "tile_calc": ["8", 1],
+      "blend": 0
+    },
+    "_meta": {
+      "title": "Merge for Preview",
+      "note": "blend=0: No blending to maintain hard edges for pixel art"
+    }
+  },
+  "18": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "sprite_sheet_preview",
+      "images": ["17", 0]
+    },
+    "_meta": {
+      "title": "Save Full Grid Preview"
+    }
+  }
+}
