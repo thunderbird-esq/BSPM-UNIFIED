@@ -104,6 +104,47 @@ services:
       retries: 3
       start_period: 120s
 
+  # ============================================================================
+  # Aseprite MCP - Model Context Protocol server for Aseprite automation
+  # ============================================================================
+  aseprite-mcp:
+    build:
+      context: ./aseprite_mcp
+      dockerfile: Dockerfile.local
+    container_name: gbstudio_aseprite_mcp
+    ports:
+      - "8189:8189"
+    volumes:
+      # Mount host Aseprite binary as read-only
+      # Update ASEPRITE_PATH in .env to match your installation
+      - ${ASEPRITE_PATH:-/Applications/Aseprite.app/Contents/MacOS/aseprite}:/usr/local/bin/aseprite:ro
+      # Optional: Mount additional paths for file operations
+      - ./temp_outputs:/app/outputs:rw
+    environment:
+      - ASEPRITE_PATH=/usr/local/bin/aseprite
+      - MCP_TIMEOUT=${ASEPRITE_MCP_TIMEOUT:-300}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      backend:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - gbstudio_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s = socket.socket(); s.connect(('localhost', 8189)); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 # ============================================================================
 # Named Volumes
 # ============================================================================
