@@ -11,20 +11,20 @@ class AsepriteError(Exception):
 
 
 class AsepriteConnectionError(AsepriteError):
-    """Raised when connection to Aseprite MCP server fails"""
+    """Raised when connection to Aseprite MCP server fails."""
 
-    def __init__(self, message: str = "Cannot connect to Aseprite MCP server"):
-        self.message = message
-        super().__init__(self.message)
+    def __init__(self, message: str, url: str = None):
+        self.url = url
+        super().__init__(message)
 
 
 class AsepriteToolError(AsepriteError):
-    """Raised when Aseprite tool execution fails"""
+    """Raised when an MCP tool execution fails."""
 
-    def __init__(self, tool_name: str, message: str):
+    def __init__(self, message: str, tool_name: str = None, details: dict = None):
         self.tool_name = tool_name
-        self.message = f"Aseprite tool '{tool_name}' failed: {message}"
-        super().__init__(self.message)
+        self.details = details or {}
+        super().__init__(message)
 
 
 class AsepriteValidationError(AsepriteError):
@@ -38,15 +38,20 @@ class AsepriteValidationError(AsepriteError):
 
 
 class AsepriteFileNotFoundError(AsepriteError):
-    """Raised when a file is not found"""
+    """Raised when an Aseprite file is not found."""
 
-    pass
+    def __init__(self, message: str, filename: str = None):
+        self.filename = filename
+        super().__init__(message)
 
 
 class AsepriteExportError(AsepriteError):
-    """Raised when export operation fails"""
+    """Raised when sprite export operation fails."""
 
-    pass
+    def __init__(self, message: str, source_file: str = None, target_format: str = None):
+        self.source_file = source_file
+        self.target_format = target_format
+        super().__init__(message)
 
 
 class AsepritePaletteError(AsepriteError):
@@ -59,6 +64,8 @@ class AsepritePaletteError(AsepriteError):
 
 
 class AsepriteTimeoutError(AsepriteError):
-    """Raised when operation times out"""
+    """Raised when an operation times out."""
 
-    pass
+    def __init__(self, message: str, timeout_seconds: float = None):
+        self.timeout_seconds = timeout_seconds
+        super().__init__(message)
