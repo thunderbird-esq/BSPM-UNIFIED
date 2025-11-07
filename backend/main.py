@@ -80,6 +80,10 @@ from backend.retry_logic import (
 # Metrics
 from backend.metrics import metrics, MetricsCollector
 
+# Aseprite MCP Integration
+from backend.aseprite.client import AsepriteClient
+from backend.aseprite.exceptions import AsepriteConnectionError, AsepriteToolError
+
 
 class Settings(BaseSettings):
     """Application configuration with validation"""
@@ -234,6 +238,9 @@ sessions: Dict[str, Dict] = {}
 # Application startup time for uptime calculation
 START_TIME = time.time()
 
+# Aseprite MCP client (initialized on startup)
+aseprite_client: Optional[AsepriteClient] = None
+
 
 # ============================================================================
 # FastAPI App Initialization
@@ -267,8 +274,18 @@ if frontend_path.exists():
 @app.on_event("startup")
 async def startup_event():
     """Start background services on application startup"""
+    global aseprite_client
+
     await task_queue.start()
     logger.info("Task queue started")
+
+    # Initialize Aseprite MCP client
+    aseprite_client = AsepriteClient(
+        base_url=os.getenv("ASEPRITE_MCP_URL", "http://aseprite-mcp:8189"),
+        timeout=float(os.getenv("ASEPRITE_MCP_TIMEOUT", "300"))
+    )
+    logger.info(f"Aseprite MCP client initialized: {aseprite_client.base_url}")
+
     logger.info("GBStudio Automation Hub v3.3 started")
 
 
@@ -1147,10 +1164,279 @@ async def rebuild_kb_index():
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.rebuild_index()
         return result
-        
+
     except Exception as e:
         logger.error(f"KB rebuild failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Aseprite MCP Endpoints
+# ============================================================================
+
+@app.post("/api/v1/aseprite/import")
+async def import_sprite_to_aseprite(
+    png_path: str,
+    width: int = 16,
+    height: int = 16
+) -> Dict[str, Any]:
+    """
+    Import ComfyUI-generated PNG into Aseprite.
+
+    Args:
+        png_path: Path to source PNG file
+        width: Sprite width in pixels (default: 16)
+        height: Sprite height in pixels (default: 16)
+
+    Returns:
+        Dict with .aseprite file path and metadata
+
+    Raises:
+        404: PNG file not found
+        503: Aseprite MCP server unavailable
+        400: Import tool error
+        500: Internal server error
+    """
+    correlation_id = generate_correlation_id()
+    req_logger = LoggerAdapter(logger, {'correlation_id': correlation_id})
+
+    try:
+        req_logger.info(f"Importing PNG to Aseprite: {png_path}")
+
+        if not aseprite_client:
+            raise HTTPException(
+                status_code=503,
+                detail="Aseprite MCP client not initialized"
+            )
+
+        result = aseprite_client.create_sprite_from_png(
+            png_path=png_path,
+            width=width,
+            height=height
+        )
+
+        req_logger.info(f"PNG imported successfully: {result}")
+        return {
+            "status": "success",
+            "correlation_id": correlation_id,
+            **result
+        }
+
+    except FileNotFoundError as e:
+        req_logger.error(f"PNG file not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except AsepriteConnectionError as e:
+        req_logger.error(f"Aseprite connection error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
+    except AsepriteToolError as e:
+        req_logger.error(f"Aseprite tool error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        req_logger.error(f"Unexpected error in import: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.post("/api/v1/aseprite/export")
+async def export_sprite_from_aseprite(
+    aseprite_path: str,
+    output_dir: str = "project_files/sprites"
+) -> Dict[str, Any]:
+    """
+    Export .aseprite to GBStudio-compatible PNG.
+
+    Args:
+        aseprite_path: Path to .aseprite file
+        output_dir: Output directory for exported PNG (default: project_files/sprites)
+
+    Returns:
+        Dict with exported PNG path
+
+    Raises:
+        404: Aseprite file not found
+        503: Aseprite MCP server unavailable
+        400: Export tool error
+        500: Internal server error
+    """
+    correlation_id = generate_correlation_id()
+    req_logger = LoggerAdapter(logger, {'correlation_id': correlation_id})
+
+    try:
+        req_logger.info(f"Exporting Aseprite file: {aseprite_path}")
+
+        if not aseprite_client:
+            raise HTTPException(
+                status_code=503,
+                detail="Aseprite MCP client not initialized"
+            )
+
+        result = aseprite_client.export_for_gbstudio(
+            aseprite_path=aseprite_path,
+            output_dir=output_dir
+        )
+
+        req_logger.info(f"Aseprite file exported successfully: {result}")
+        return {
+            "status": "success",
+            "correlation_id": correlation_id,
+            **result
+        }
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Aseprite file not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except AsepriteConnectionError as e:
+        req_logger.error(f"Aseprite connection error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
+    except AsepriteToolError as e:
+        req_logger.error(f"Aseprite tool error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        req_logger.error(f"Unexpected error in export: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.get("/api/v1/aseprite/files")
+async def list_aseprite_files(
+    workspace: str = "temp_outputs"
+) -> Dict[str, Any]:
+    """
+    List all .aseprite files in workspace.
+
+    Args:
+        workspace: Workspace directory to scan (default: temp_outputs)
+
+    Returns:
+        Dict with list of .aseprite files and metadata
+
+    Raises:
+        503: Aseprite MCP server unavailable
+        400: List files tool error
+        500: Internal server error
+    """
+    correlation_id = generate_correlation_id()
+    req_logger = LoggerAdapter(logger, {'correlation_id': correlation_id})
+
+    try:
+        req_logger.info(f"Listing Aseprite files in workspace: {workspace}")
+
+        if not aseprite_client:
+            raise HTTPException(
+                status_code=503,
+                detail="Aseprite MCP client not initialized"
+            )
+
+        result = aseprite_client.list_files(workspace=workspace)
+
+        req_logger.info("Files listed successfully")
+        return {
+            "status": "success",
+            "correlation_id": correlation_id,
+            **result
+        }
+
+    except AsepriteConnectionError as e:
+        req_logger.error(f"Aseprite connection error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
+    except AsepriteToolError as e:
+        req_logger.error(f"Aseprite tool error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        req_logger.error(f"Unexpected error in list files: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.post("/api/v1/aseprite/frame")
+async def add_animation_frame(
+    aseprite_path: str
+) -> Dict[str, Any]:
+    """
+    Add animation frame to .aseprite file.
+
+    Args:
+        aseprite_path: Path to .aseprite file
+
+    Returns:
+        Dict with success status and frame count
+
+    Raises:
+        404: Aseprite file not found
+        503: Aseprite MCP server unavailable
+        400: Add frame tool error
+        500: Internal server error
+    """
+    correlation_id = generate_correlation_id()
+    req_logger = LoggerAdapter(logger, {'correlation_id': correlation_id})
+
+    try:
+        req_logger.info(f"Adding animation frame to: {aseprite_path}")
+
+        if not aseprite_client:
+            raise HTTPException(
+                status_code=503,
+                detail="Aseprite MCP client not initialized"
+            )
+
+        result = aseprite_client.add_animation_frame(aseprite_path=aseprite_path)
+
+        req_logger.info(f"Animation frame added successfully: {result}")
+        return {
+            "status": "success",
+            "correlation_id": correlation_id,
+            **result
+        }
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Aseprite file not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except AsepriteConnectionError as e:
+        req_logger.error(f"Aseprite connection error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
+    except AsepriteToolError as e:
+        req_logger.error(f"Aseprite tool error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        req_logger.error(f"Unexpected error in add frame: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.get("/api/v1/aseprite/health")
+async def check_aseprite_health() -> Dict[str, Any]:
+    """
+    Check Aseprite MCP server health.
+
+    Returns:
+        Dict with health status and server info
+
+    Raises:
+        503: Aseprite MCP server unavailable
+        500: Internal server error
+    """
+    correlation_id = generate_correlation_id()
+    req_logger = LoggerAdapter(logger, {'correlation_id': correlation_id})
+
+    try:
+        req_logger.info("Checking Aseprite MCP server health")
+
+        if not aseprite_client:
+            raise HTTPException(
+                status_code=503,
+                detail="Aseprite MCP client not initialized"
+            )
+
+        result = aseprite_client.health_check()
+
+        req_logger.info(f"Health check successful: {result}")
+        return {
+            "correlation_id": correlation_id,
+            **result
+        }
+
+    except AsepriteConnectionError as e:
+        req_logger.error(f"Aseprite connection error: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        req_logger.error(f"Unexpected error in health check: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 if __name__ == "__main__":
