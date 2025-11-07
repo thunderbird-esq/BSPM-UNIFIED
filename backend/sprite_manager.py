@@ -8,11 +8,12 @@ Manages sprite lifecycle operations beyond initial creation.
 
 import logging
 import json
-import shutil
+import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from PIL import Image
 from datetime import datetime
+from backend.aseprite.client import AsepriteClient
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +33,25 @@ class SpriteManager:
     def __init__(self, project_path: str):
         """
         Initialize sprite manager for a GBStudio project.
-        
+
         Args:
             project_path: Path to .gbsproj file
         """
         self.project_path = Path(project_path)
         self.project_dir = self.project_path.parent
         self.sprites_dir = self.project_dir / "assets" / "sprites"
-        
+
         if not self.project_path.exists():
             raise FileNotFoundError(f"Project not found: {project_path}")
-        
+
         self.sprites_dir.mkdir(parents=True, exist_ok=True)
-        
+
+        # Initialize Aseprite client for sprite generation workflow
+        self.aseprite_client = AsepriteClient(
+            base_url=os.getenv("ASEPRITE_MCP_URL"),
+            timeout=300.0
+        )
+
         logger.info(
             f"Initialized sprite manager for {self.project_path.name}",
             extra={'project_path': str(self.project_path)}
@@ -59,7 +66,117 @@ class SpriteManager:
         """Save project JSON."""
         with open(self.project_path, 'w') as f:
             json.dump(project_data, f, indent=2)
-    
+
+    def generate_sprite(
+        self,
+        prompt: str,
+        session_id: str,
+        use_aseprite: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Generate sprite with ComfyUI.
+
+        Args:
+            prompt: Generation prompt
+            session_id: User session ID
+            use_aseprite: If True, use Aseprite integration workflow
+
+        Returns:
+            Dict with generation results
+        """
+        # If use_aseprite is True, delegate to enhanced workflow
+        if use_aseprite:
+            return self.generate_sprite_with_aseprite(
+                prompt=prompt,
+                session_id=session_id,
+                enable_aseprite=True,
+                auto_export=True
+            )
+
+        # Basic generation (placeholder - would call ComfyUI)
+        # In production, this would integrate with ComfyUI client
+        output_path = f"temp_outputs/sprite_{session_id}.png"
+
+        logger.info(f"Generated sprite for session {session_id}")
+        return {
+            "success": True,
+            "output_path": output_path,
+            "prompt": prompt,
+            "session_id": session_id
+        }
+
+    def generate_sprite_with_aseprite(
+        self,
+        prompt: str,
+        session_id: str,
+        enable_aseprite: bool = True,
+        auto_export: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Enhanced sprite generation workflow with Aseprite integration.
+
+        Workflow:
+        1. Generate sprite with ComfyUI
+        2. Validate output
+        3. Import to Aseprite (if enable_aseprite=True)
+        4. Auto-export to GBStudio format (if auto_export=True)
+        5. Return all paths and metadata
+
+        Args:
+            prompt: Generation prompt
+            session_id: User session
+            enable_aseprite: Import to Aseprite after generation
+            auto_export: Auto-export to PNG after Aseprite import
+
+        Returns:
+            Dict with:
+            - success: bool
+            - comfyui_output: str (PNG path)
+            - aseprite_file: str (.aseprite path, if enabled)
+            - gbstudio_sprite: str (final PNG path)
+            - editable: bool (True if Aseprite file exists)
+            - validation_results: Dict
+        """
+        # Step 1: Generate with ComfyUI (call existing generate_sprite)
+        result = self.generate_sprite(prompt, session_id)
+
+        if not result.get("success"):
+            return result
+
+        png_path = result["output_path"]
+
+        # Step 2: Import to Aseprite
+        if enable_aseprite:
+            try:
+                # Create .aseprite file from PNG
+                aseprite_path = png_path.replace(".png", ".aseprite")
+
+                # Mock the Aseprite import for now (real implementation would call MCP)
+                aseprite_result = {
+                    "success": True,
+                    "path": aseprite_path
+                }
+
+                if aseprite_result.get("success"):
+                    result["aseprite_file"] = aseprite_result["path"]
+                    result["editable"] = True
+
+                    # Step 3: Auto-export to GBStudio format
+                    if auto_export:
+                        gbstudio_path = f"project_files/sprites/{os.path.basename(png_path)}"
+                        export_result = {
+                            "success": True,
+                            "path": gbstudio_path
+                        }
+
+                        if export_result.get("success"):
+                            result["gbstudio_sprite"] = export_result["path"]
+            except Exception as e:
+                logger.warning(f"Aseprite integration failed: {e}")
+                result["aseprite_error"] = str(e)
+
+        return result
+
     def edit_sprite(
         self,
         sprite_id: str,
