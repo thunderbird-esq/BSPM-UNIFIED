@@ -89,4 +89,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
 # Run application with uvicorn
 # --host 0.0.0.0: Listen on all interfaces (required for Docker networking)
 # --port 8000: Standard HTTP port
-CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
