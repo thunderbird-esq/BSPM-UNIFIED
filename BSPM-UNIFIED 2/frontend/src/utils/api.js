@@ -117,8 +117,33 @@ export async function getComfyUIHistory(promptId) {
 }
 
 /**
+ * Generic API call wrapper
+ *
+ * @param {string} endpoint - API endpoint (e.g., '/api/v1/prompt')
+ * @param {string} method - HTTP method (GET, POST, DELETE, etc.)
+ * @param {Object} body - Request body (for POST/PUT)
+ * @returns {Promise<Object>} Response data
+ */
+export async function apiCall(endpoint, method = 'GET', body = null) {
+    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+    const options = {
+        method,
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    };
+
+    if (body) {
+        options.body = JSON.stringify(body);
+    }
+
+    const response = await fetchWithRetry(url, options);
+    return await response.json();
+}
+
+/**
  * Sleep utility for retry delays
- * 
+ *
  * @param {number} ms - Milliseconds to sleep
  * @returns {Promise<void>}
  */
