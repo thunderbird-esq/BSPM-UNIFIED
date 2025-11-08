@@ -6,9 +6,6 @@
 
 FROM python:3.11-slim-bullseye AS builder
 
-# Architecture check - fail fast if not x86_64
-RUN [ "$(uname -m)" = "x86_64" ] || (echo "ERROR: This image requires x86_64 architecture" && exit 1)
-
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \

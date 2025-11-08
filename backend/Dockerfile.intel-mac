@@ -8,10 +8,6 @@
 # ============================================================================
 FROM python:3.11-slim-bullseye AS builder
 
-# Fail fast if not running on x86_64
-RUN [ "$(uname -m)" = "x86_64" ] || \
-    (echo "ERROR: This image requires x86_64 architecture. Current: $(uname -m)" && exit 1)
-
 WORKDIR /app
 
 # Install build dependencies for Python packages
