@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# macOS
+.DS_Store
+__MACOSX/
+
+# Runtime directories
+agent_memory/
+vectorstore/
+temp_outputs/
+app/logs/
+app/secrets/
+
+# Extracted archives
+BSPM-UNIFIED 2/
+*.zip
+
+# Docker volumes
+comfyui_models/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
