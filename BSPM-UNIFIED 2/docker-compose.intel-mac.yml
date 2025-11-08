@@ -39,9 +39,9 @@ services:
       - GBSTUDIO_OLLAMA_TAGS_URL=http://host.docker.internal:11434/api/tags
       - GBSTUDIO_COMFYUI_API_URL=http://comfyui:8188
       
-      # Models
-      - GBSTUDIO_PM_MODEL=llama3
-      - GBSTUDIO_EMBEDDING_MODEL=nomic-embed-text
+      # Models (with version tags as they appear in Ollama)
+      - GBSTUDIO_PM_MODEL=llama3:8b
+      - GBSTUDIO_EMBEDDING_MODEL=nomic-embed-text:latest
       
       # Timeouts
       - GBSTUDIO_DEFAULT_TIMEOUT=90
