@@ -21,7 +21,7 @@ from pathlib import Path
 
 import faiss
 import numpy as np
-import requests
+import aiohttp
 
 
 @dataclass
@@ -116,77 +116,79 @@ class KnowledgeBase:
             self.index = faiss.IndexFlatL2(self.dimension)
             print(f"[KB] Created new FAISS IndexFlatL2 (dimension={self.dimension})")
     
-    def _get_embedding(self, text: str, timeout: int = 30) -> np.ndarray:
+    async def _get_embedding(self, text: str, timeout: int = 30) -> np.ndarray:
         """
         Get embedding vector from Ollama
-        
+
         Args:
             text: Text to embed
             timeout: Request timeout in seconds
-        
+
         Returns:
             768-dimensional numpy array (float32)
-        
+
         Raises:
             RuntimeError: If embedding API fails
         """
         try:
-            response = requests.post(
-                self.embedding_url,
-                json={
-                    "model": self.embedding_model,
-                    "prompt": text
-                },
-                timeout=timeout
-            )
-            response.raise_for_status()
-            
-            result = response.json()
-            embedding = result.get("embedding")
-            
-            if not embedding:
-                raise RuntimeError("No embedding in response")
-            
-            # Convert to numpy array (FAISS requires float32)
-            return np.array(embedding, dtype=np.float32)
-        
-        except requests.exceptions.RequestException as e:
+            timeout_obj = aiohttp.ClientTimeout(total=timeout)
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.embedding_url,
+                    json={
+                        "model": self.embedding_model,
+                        "prompt": text
+                    },
+                    timeout=timeout_obj
+                ) as response:
+                    response.raise_for_status()
+
+                    result = await response.json()
+                    embedding = result.get("embedding")
+
+                    if not embedding:
+                        raise RuntimeError("No embedding in response")
+
+                    # Convert to numpy array (FAISS requires float32)
+                    return np.array(embedding, dtype=np.float32)
+
+        except aiohttp.ClientError as e:
             raise RuntimeError(f"Failed to get embedding: {e}")
     
-    def add_document(self, content: str, metadata: Dict) -> str:
+    async def add_document(self, content: str, metadata: Dict) -> str:
         """
         Add document to knowledge base
-        
+
         Args:
             content: Document text content
             metadata: Dict with type, source, timestamps, etc.
-        
+
         Returns:
             Document ID (SHA256 hash)
         """
         # Create document
         doc = Document(content=content, metadata=metadata)
-        
-        # Get embedding
-        doc.embedding = self._get_embedding(content)
-        
+
+        # Get embedding (async)
+        doc.embedding = await self._get_embedding(content)
+
         # Add to FAISS index
         # reshape(1, -1) because FAISS expects 2D array (batch of vectors)
         self.index.add(doc.embedding.reshape(1, -1))
-        
+
         # Store document and mapping
         faiss_index = self.index.ntotal - 1  # Last added index
         self.documents[doc.doc_id] = doc
         self.doc_id_to_index[doc.doc_id] = faiss_index
-        
+
         # Persist to disk
         self._save_index()
-        
+
         print(f"[KB] Added document: {doc.doc_id} ({len(content)} chars)")
-        
+
         return doc.doc_id
     
-    def add_conversation_turn(
+    async def add_conversation_turn(
         self,
         user_message: str,
         pm_response: str,
@@ -196,20 +198,20 @@ class KnowledgeBase:
     ) -> str:
         """
         Add conversation turn to knowledge base
-        
+
         Args:
             user_message: User's message
             pm_response: PM agent's response
             session_id: Session identifier
             turn_id: Turn identifier
             timestamp: When conversation occurred
-        
+
         Returns:
             Document ID
         """
         # Combine messages for better semantic search
         combined_text = f"User asked: {user_message}\nPM responded: {pm_response}"
-        
+
         metadata = {
             "type": "conversation",
             "session_id": session_id,
@@ -218,10 +220,10 @@ class KnowledgeBase:
             "user_message": user_message[:200],  # Store snippet for debugging
             "pm_response": pm_response[:200]
         }
-        
-        return self.add_document(combined_text, metadata)
+
+        return await self.add_document(combined_text, metadata)
     
-    def add_project_document(
+    async def add_project_document(
         self,
         filepath: str,
         doc_type: str,
@@ -230,22 +232,22 @@ class KnowledgeBase:
     ) -> List[str]:
         """
         Add project document with chunking
-        
+
         Args:
             filepath: Path to markdown/text file
             doc_type: Document type (e.g., "GameDesignDocument")
             chunk_size: Target characters per chunk
             overlap: Overlap between chunks
-        
+
         Returns:
             List of document IDs (one per chunk)
         """
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
-        
+
         # Chunk document
         chunks = self._chunk_document(content, chunk_size, overlap)
-        
+
         doc_ids = []
         for i, chunk in enumerate(chunks):
             metadata = {
@@ -256,12 +258,12 @@ class KnowledgeBase:
                 "total_chunks": len(chunks),
                 "created_at": datetime.utcnow().isoformat()
             }
-            
-            doc_id = self.add_document(chunk, metadata)
+
+            doc_id = await self.add_document(chunk, metadata)
             doc_ids.append(doc_id)
-        
+
         print(f"[KB] Added project document: {filepath} ({len(chunks)} chunks)")
-        
+
         return doc_ids
     
     def _chunk_document(
@@ -320,7 +322,7 @@ class KnowledgeBase:
         
         return chunks
     
-    def search(
+    async def search(
         self,
         query: str,
         k: int = 5,
@@ -328,63 +330,63 @@ class KnowledgeBase:
     ) -> List[Dict]:
         """
         Semantic search with optional metadata filtering
-        
+
         Args:
             query: Search query text
             k: Number of results to return
             filter_type: Optional filter by metadata['type']
-        
+
         Returns:
             List of dicts with content, metadata, score, doc_id
         """
         if self.index.ntotal == 0:
             return []
-        
-        # Get query embedding
-        query_embedding = self._get_embedding(query)
-        
+
+        # Get query embedding (async)
+        query_embedding = await self._get_embedding(query)
+
         # Search FAISS (get extra results for filtering)
         search_k = k * 3 if filter_type else k
         distances, indices = self.index.search(
             query_embedding.reshape(1, -1),
             min(search_k, self.index.ntotal)
         )
-        
+
         # Retrieve documents
         results = []
         for distance, idx in zip(distances[0], indices[0]):
             if idx == -1:  # FAISS returns -1 for empty slots
                 continue
-            
+
             # Find document by FAISS index
             doc_id = None
             for did, didx in self.doc_id_to_index.items():
                 if didx == idx:
                     doc_id = did
                     break
-            
+
             if not doc_id or doc_id not in self.documents:
                 continue
-            
+
             doc = self.documents[doc_id]
-            
+
             # Apply metadata filter
             if filter_type and doc.metadata.get("type") != filter_type:
                 continue
-            
+
             results.append({
                 "content": doc.content,
                 "metadata": doc.metadata,
                 "score": float(distance),  # L2 distance (lower = more similar)
                 "doc_id": doc.doc_id
             })
-            
+
             if len(results) >= k:
                 break
-        
+
         return results
     
-    def hybrid_search(
+    async def hybrid_search(
         self,
         query: str,
         session_id: Optional[str] = None,
@@ -392,39 +394,39 @@ class KnowledgeBase:
     ) -> str:
         """
         Hybrid search: Combine recent session context with semantic search
-        
+
         Args:
             query: Search query
             session_id: Optional session to get recent context from
             k: Number of results per category
-        
+
         Returns:
             Formatted context string for LLM prompt
         """
         context_parts = []
-        
+
         # 1. Get recent conversations from this session
         if session_id:
-            recent_results = self.search(query, k=2, filter_type="conversation")
+            recent_results = await self.search(query, k=2, filter_type="conversation")
             session_results = [
                 r for r in recent_results
                 if r["metadata"].get("session_id") == session_id
             ]
-            
+
             if session_results:
                 context_parts.append("## Recent Relevant Discussions:")
                 for result in session_results:
                     context_parts.append(f"- {result['content'][:200]}...")
-        
+
         # 2. Get relevant project documents
-        doc_results = self.search(query, k=k, filter_type="project_doc")
-        
+        doc_results = await self.search(query, k=k, filter_type="project_doc")
+
         if doc_results:
             context_parts.append("\n## Relevant Documentation:")
             for result in doc_results:
                 doc_type = result['metadata'].get('doc_type', 'unknown')
                 context_parts.append(f"- [{doc_type}] {result['content'][:300]}...")
-        
+
         return "\n".join(context_parts) if context_parts else "No relevant context found."
     
     def _save_index(self):
@@ -472,34 +474,39 @@ class KnowledgeBase:
 
 # Example usage
 if __name__ == "__main__":
-    # Initialize knowledge base
-    kb = KnowledgeBase(
-        vectorstore_path="/app/vectorstore",
-        embedding_url="http://ollama:11434/api/embeddings"
-    )
-    
-    # Add a project document
-    doc_ids = kb.add_project_document(
-        filepath="/app/project_docs/GameDesignDocument.md",
-        doc_type="GameDesign",
-        chunk_size=1000,
-        overlap=200
-    )
-    
-    print(f"Added {len(doc_ids)} chunks")
-    
-    # Search
-    results = kb.search("knight character sprites", k=3)
-    
-    for i, result in enumerate(results, 1):
-        print(f"\n[Result {i}]")
-        print(f"Score: {result['score']:.4f}")
-        print(f"Type: {result['metadata']['type']}")
-        print(f"Content: {result['content'][:200]}...")
-    
-    # Stats
-    print("\n[Stats]")
-    print(kb.get_stats())
+    import asyncio
+
+    async def main():
+        # Initialize knowledge base
+        kb = KnowledgeBase(
+            vectorstore_path="/app/vectorstore",
+            embedding_url="http://ollama:11434/api/embeddings"
+        )
+
+        # Add a project document
+        doc_ids = await kb.add_project_document(
+            filepath="/app/project_docs/GameDesignDocument.md",
+            doc_type="GameDesign",
+            chunk_size=1000,
+            overlap=200
+        )
+
+        print(f"Added {len(doc_ids)} chunks")
+
+        # Search
+        results = await kb.search("knight character sprites", k=3)
+
+        for i, result in enumerate(results, 1):
+            print(f"\n[Result {i}]")
+            print(f"Score: {result['score']:.4f}")
+            print(f"Type: {result['metadata']['type']}")
+            print(f"Content: {result['content'][:200]}...")
+
+        # Stats
+        print("\n[Stats]")
+        print(kb.get_stats())
+
+    asyncio.run(main())
 
 
 # ============================================================================

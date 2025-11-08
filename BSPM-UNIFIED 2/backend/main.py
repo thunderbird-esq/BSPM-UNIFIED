@@ -29,7 +29,7 @@ from uuid import uuid4
 
 import aiohttp
 import requests
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends, Response
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends, Response, Query
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -80,6 +80,9 @@ from retry_logic import (
 
 # Metrics
 from metrics import metrics, MetricsCollector
+
+# Background cleanup
+from cleanup import cleanup_task
 
 
 class Settings(BaseSettings):
@@ -317,6 +320,17 @@ async def startup_event():
         embedding_model=settings.embedding_model
     )
     logger.info("Knowledge base initialized")
+
+    # Start background cleanup task
+    conversations_dir = os.path.join(settings.agent_memory_path, "conversations")
+    asyncio.create_task(cleanup_task(
+        regeneration_manager=regeneration_manager,
+        rate_limiter=rate_limiter,
+        task_queue=task_queue,
+        conversations_dir=conversations_dir,
+        cleanup_interval_seconds=3600  # Run every hour
+    ))
+    logger.info("Background cleanup task started")
 
     logger.info("GBStudio Automation Hub v3.3 started")
 
@@ -738,16 +752,31 @@ async def handle_prompt(request: PromptRequest, _rate_limit = Depends(check_rate
         }
     
     except CircuitBreakerOpen as e:
-        req_logger.error(f"Circuit breaker open: {e}")
-        raise HTTPException(status_code=503, detail=str(e))
+        req_logger.error(f"PM Agent circuit breaker open: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="PM Agent service temporarily unavailable. Please try again later.")
+
     except RetryExhausted as e:
-        req_logger.error(f"Retry exhausted: {e}")
-        raise HTTPException(status_code=503, detail=str(e))
-    except HTTPException as e:
-        raise e
+        req_logger.error(f"PM Agent retry exhausted: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="PM Agent service is not responding. Please try again later.")
+
+    except asyncio.TimeoutError:
+        req_logger.error(f"PM Agent request timed out after {settings.default_timeout}s", exc_info=True)
+        raise HTTPException(status_code=504, detail="Request timed out. Please try again with a simpler prompt.")
+
+    except aiohttp.ClientError as e:
+        req_logger.error(f"PM Agent service unavailable: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="PM Agent service unavailable. Please check service status.")
+
+    except ValueError as e:
+        req_logger.error(f"Invalid input for PM Agent: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}")
+
+    except HTTPException:
+        raise
+
     except Exception as e:
-        req_logger.error(f"Unexpected error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Unexpected error in PM Agent endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error. Please try again later.")
 
 
 @app.post("/api/v1/execute", dependencies=[Depends(verify_api_key)])
@@ -762,107 +791,142 @@ async def handle_execution(request: ExecutionRequest, _rate_limit = Depends(chec
 
     req_logger.info(f"Executing plan: {len(request.plan)} tasks")
 
-    # Create regeneration session for tracking
-    session = regeneration_manager.create_session(
-        session_id=request.session_id,
-        original_prompt=request.plan[0].task if request.plan else '',
-        base_plan={'plan': [task.dict() for task in request.plan]}
-    )
+    try:
+        # Validate request
+        if not request.plan:
+            raise ValueError("Execution plan cannot be empty")
 
-    results = []
-    task_ids = []
+        # Create regeneration session for tracking
+        session = regeneration_manager.create_session(
+            session_id=request.session_id,
+            original_prompt=request.plan[0].task if request.plan else '',
+            base_plan={'plan': [task.dict() for task in request.plan]}
+        )
 
-    # Process each task in the plan
-    for task in request.plan:
-        if task.department == "Art":
-            try:
-                # Extract parameters from task details or use defaults
-                details = task.details or {}
-                positive_prompt = task.task  # The task description is the prompt
-                negative_prompt = details.get('negative_prompt', 'blurry, low quality, bad anatomy')
-                preset_name = details.get('preset', 'clean_pixel_art')
-                seed = details.get('seed')
+        results = []
+        task_ids = []
 
-                # Get style preset
+        # Process each task in the plan
+        for task in request.plan:
+            if task.department == "Art":
                 try:
-                    preset = get_preset_by_name(preset_name)
-                    # Build enhanced prompts with preset boost
-                    enhanced_positive = f"{positive_prompt}, {preset.positive_boost}"
-                    enhanced_negative = f"{negative_prompt}, {preset.negative_boost}"
-                except ValueError:
-                    # Fall back to defaults if preset not found
-                    req_logger.warning(f"Preset '{preset_name}' not found, using clean_pixel_art")
-                    preset = get_preset_by_name('clean_pixel_art')
-                    enhanced_positive = f"{positive_prompt}, {preset.positive_boost}"
-                    enhanced_negative = f"{negative_prompt}, {preset.negative_boost}"
+                    # Extract parameters from task details or use defaults
+                    details = task.details or {}
+                    positive_prompt = task.task  # The task description is the prompt
+                    negative_prompt = details.get('negative_prompt', 'blurry, low quality, bad anatomy')
+                    preset_name = details.get('preset', 'clean_pixel_art')
+                    seed = details.get('seed')
 
-                # Create generation function for task queue
-                async def generate_sprite():
-                    from comfyui.executor import execute_spritesheet_generation
-                    result = await execute_spritesheet_generation(
-                        positive_prompt=enhanced_positive,
-                        negative_prompt=enhanced_negative,
-                        comfyui_url=settings.comfyui_api_url,
-                        seed=seed
+                    # Get style preset
+                    try:
+                        preset = get_preset_by_name(preset_name)
+                        # Build enhanced prompts with preset boost
+                        enhanced_positive = f"{positive_prompt}, {preset.positive_boost}"
+                        enhanced_negative = f"{negative_prompt}, {preset.negative_boost}"
+                    except ValueError:
+                        # Fall back to defaults if preset not found
+                        req_logger.warning(f"Preset '{preset_name}' not found, using clean_pixel_art")
+                        preset = get_preset_by_name('clean_pixel_art')
+                        enhanced_positive = f"{positive_prompt}, {preset.positive_boost}"
+                        enhanced_negative = f"{negative_prompt}, {preset.negative_boost}"
+
+                    # Create generation function for task queue
+                    async def generate_sprite():
+                        from comfyui.executor import execute_spritesheet_generation
+                        result = await execute_spritesheet_generation(
+                            positive_prompt=enhanced_positive,
+                            negative_prompt=enhanced_negative,
+                            comfyui_url=settings.comfyui_api_url,
+                            seed=seed
+                        )
+                        return result
+
+                    # Submit to task queue
+                    task_id = await task_queue.submit(
+                        func=generate_sprite,
+                        session_id=request.session_id,
+                        plan={'task': task.task, 'details': details},
+                        priority=Priority.NORMAL
                     )
-                    return result
 
-                # Submit to task queue
-                task_id = await task_queue.submit(
-                    func=generate_sprite,
-                    session_id=request.session_id,
-                    plan={'task': task.task, 'details': details},
-                    priority=Priority.NORMAL
-                )
+                    task_ids.append(task_id)
 
-                task_ids.append(task_id)
+                    results.append({
+                        "department": "Art",
+                        "task": task.task,
+                        "status": "queued",
+                        "task_id": task_id,
+                        "message": "Sprite generation queued successfully"
+                    })
 
+                    req_logger.info(f"Art task queued: {task_id}")
+
+                except ValueError as e:
+                    req_logger.error(f"Invalid parameters for Art task: {e}", exc_info=True)
+                    results.append({
+                        "department": "Art",
+                        "task": task.task,
+                        "status": "failed",
+                        "error": str(e),
+                        "message": f"Invalid parameters: {str(e)}"
+                    })
+
+                except Exception as e:
+                    req_logger.error(f"Failed to queue Art task: {e}", exc_info=True)
+                    results.append({
+                        "department": "Art",
+                        "task": task.task,
+                        "status": "failed",
+                        "error": str(e),
+                        "message": f"Failed to queue generation: {str(e)}"
+                    })
+            else:
+                # Other departments not yet implemented
                 results.append({
-                    "department": "Art",
+                    "department": task.department,
                     "task": task.task,
-                    "status": "queued",
-                    "task_id": task_id,
-                    "message": "Sprite generation queued successfully"
+                    "status": "unsupported",
+                    "message": f"Department {task.department} not yet implemented"
                 })
 
-                req_logger.info(f"Art task queued: {task_id}")
+        # Return first task_id as prompt_id for frontend compatibility
+        prompt_id = task_ids[0] if task_ids else None
 
-            except Exception as e:
-                req_logger.error(f"Failed to queue Art task: {e}", exc_info=True)
-                results.append({
-                    "department": "Art",
-                    "task": task.task,
-                    "status": "failed",
-                    "error": str(e),
-                    "message": f"Failed to queue generation: {str(e)}"
-                })
-        else:
-            # Other departments not yet implemented
-            results.append({
-                "department": task.department,
-                "task": task.task,
-                "status": "unsupported",
-                "message": f"Department {task.department} not yet implemented"
-            })
+        return {
+            "status": "queued" if task_ids else "completed",
+            "results": results,
+            "session_id": request.session_id,
+            "correlation_id": correlation_id,
+            "prompt_id": prompt_id,  # For frontend WebSocket tracking
+            "task_ids": task_ids  # All task IDs for multi-task plans
+        }
 
-    # Return first task_id as prompt_id for frontend compatibility
-    prompt_id = task_ids[0] if task_ids else None
+    except ValueError as e:
+        req_logger.error(f"Invalid execution request: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Invalid request: {str(e)}")
 
-    return {
-        "status": "queued" if task_ids else "completed",
-        "results": results,
-        "session_id": request.session_id,
-        "correlation_id": correlation_id,
-        "prompt_id": prompt_id,  # For frontend WebSocket tracking
-        "task_ids": task_ids  # All task IDs for multi-task plans
-    }
+    except asyncio.TimeoutError:
+        req_logger.error("Execution request timed out", exc_info=True)
+        raise HTTPException(status_code=504, detail="Execution request timed out. Please try again.")
+
+    except aiohttp.ClientError as e:
+        req_logger.error(f"ComfyUI service unavailable: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="ComfyUI service unavailable. Please check service status.")
+
+    except CircuitBreakerOpen as e:
+        req_logger.error(f"ComfyUI circuit breaker open: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="ComfyUI service temporarily unavailable. Please try again later.")
+
+    except Exception as e:
+        req_logger.error(f"Unexpected error in execution endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during execution. Please try again later.")
 
 
 # ============================================================================
 # Style Presets Endpoints
 # ============================================================================
 
-@app.get("/api/v1/presets")
+@app.get("/api/v1/presets", dependencies=[Depends(verify_api_key)])
 async def get_style_presets():
     """List all available style presets"""
     return {
@@ -871,7 +935,7 @@ async def get_style_presets():
     }
 
 
-@app.get("/api/v1/presets/{preset_name}")
+@app.get("/api/v1/presets/{preset_name}", dependencies=[Depends(verify_api_key)])
 async def get_preset_details(preset_name: str):
     """Get details for a specific style preset"""
     try:
@@ -890,52 +954,77 @@ async def get_preset_details(preset_name: str):
 # Regeneration Endpoints
 # ============================================================================
 
-@app.post("/api/v1/regenerate")
+@app.post("/api/v1/regenerate", dependencies=[Depends(verify_api_key)])
 async def regenerate_sprite(request: RegenerateRequest, _rate_limit = Depends(check_rate_limit)):
     """Regenerate sprite with new seed and optional different preset"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'session_id': request.session_id
+    })
+
     try:
+        req_logger.info(f"Regenerating sprite for session: {request.session_id}")
         session = regeneration_manager.get_session(request.session_id)
-        
+
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Session {request.session_id} not found. Create initial generation first."
             )
-        
+
         attempt = regeneration_manager.regenerate_with_new_seed(request.session_id, preset=request.preset)
-        
+
+        req_logger.info(f"Regeneration queued with attempt_id: {attempt.attempt_id}")
         return {
             "session_id": request.session_id,
             "attempt_id": attempt.attempt_id,
             "seed": attempt.seed,
             "preset": attempt.preset,
-            "status": "queued"
+            "status": "queued",
+            "correlation_id": correlation_id
         }
-        
+
+    except HTTPException:
+        raise
+
+    except ValueError as e:
+        req_logger.error(f"Invalid regeneration parameters: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Invalid parameters: {str(e)}")
+
+    except asyncio.TimeoutError:
+        req_logger.error("Regeneration request timed out", exc_info=True)
+        raise HTTPException(status_code=504, detail="Regeneration request timed out. Please try again.")
+
+    except aiohttp.ClientError as e:
+        req_logger.error(f"Service unavailable for regeneration: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Generation service unavailable. Please check service status.")
+
     except Exception as e:
-        logger.error(f"Regeneration failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Regeneration failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during regeneration. Please try again later.")
 
 
-@app.get("/api/v1/regenerate/{session_id}/comparison")
+@app.get("/api/v1/regenerate/{session_id}/comparison", dependencies=[Depends(verify_api_key)])
 async def get_comparison_data(session_id: str):
     """Get comparison data for all attempts in a regeneration session"""
     data = regeneration_manager.get_comparison_data(session_id)
-    
+
     if not data:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-    
+
     return data
 
 
-@app.post("/api/v1/regenerate/{session_id}/mark-best")
+@app.post("/api/v1/regenerate/{session_id}/mark-best", dependencies=[Depends(verify_api_key)])
 async def mark_best_attempt(session_id: str, attempt_id: str):
     """Mark an attempt as the best result"""
     session = regeneration_manager.get_session(session_id)
-    
+
     if not session:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-    
+
     try:
         session.mark_best(attempt_id)
         return {
@@ -951,52 +1040,95 @@ async def mark_best_attempt(session_id: str, attempt_id: str):
 # Sprite Management Endpoints
 # ============================================================================
 
-@app.put("/api/v1/sprites/edit")
+@app.put("/api/v1/sprites/edit", dependencies=[Depends(verify_api_key)])
 async def edit_sprite(request: SpriteEditRequest):
     """Edit sprite metadata"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'sprite_id': request.sprite_id
+    })
+
     try:
+        req_logger.info(f"Editing sprite: {request.sprite_id}")
         manager = create_sprite_manager(settings.gbstudio_project_path)
         sprite = manager.edit_sprite(
             sprite_id=request.sprite_id,
             name=request.name,
             sprite_type=request.sprite_type
         )
+
+        req_logger.info(f"Sprite edited successfully: {request.sprite_id}")
         return sprite
-        
+
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        req_logger.error(f"Sprite not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Sprite not found: {str(e)}")
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Project file not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail="GBStudio project file not found. Please check configuration.")
+
     except Exception as e:
-        logger.error(f"Sprite edit failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Sprite edit failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during sprite edit. Please try again later.")
 
 
-@app.delete("/api/v1/sprites/delete")
+@app.delete("/api/v1/sprites/delete", dependencies=[Depends(verify_api_key)])
 async def delete_sprite(request: SpriteDeleteRequest):
     """Delete sprite from project"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'sprite_id': request.sprite_id
+    })
+
     try:
+        req_logger.info(f"Deleting sprite: {request.sprite_id}")
         manager = create_sprite_manager(settings.gbstudio_project_path)
         success = manager.delete_sprite(
             sprite_id=request.sprite_id,
             delete_file=request.delete_file
         )
-        
+
+        req_logger.info(f"Sprite deleted successfully: {request.sprite_id}")
         return {
             "sprite_id": request.sprite_id,
             "deleted": success,
             "file_deleted": request.delete_file
         }
-        
+
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        req_logger.error(f"Sprite not found for deletion: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Sprite not found: {str(e)}")
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Project file not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail="GBStudio project file not found. Please check configuration.")
+
+    except PermissionError as e:
+        req_logger.error(f"Permission denied deleting sprite: {e}", exc_info=True)
+        raise HTTPException(status_code=403, detail="Permission denied. Cannot delete sprite file.")
+
     except Exception as e:
-        logger.error(f"Sprite deletion failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Sprite deletion failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during sprite deletion. Please try again later.")
 
 
-@app.post("/api/v1/sprites/duplicate")
+@app.post("/api/v1/sprites/duplicate", dependencies=[Depends(verify_api_key)])
 async def duplicate_sprite(request: SpriteDuplicateRequest):
     """Duplicate sprite with optional variation"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'sprite_id': request.sprite_id
+    })
+
     try:
+        req_logger.info(f"Duplicating sprite: {request.sprite_id} -> {request.new_name}")
         manager = create_sprite_manager(settings.gbstudio_project_path)
         new_sprite = manager.duplicate_sprite(
             sprite_id=request.sprite_id,
@@ -1004,19 +1136,35 @@ async def duplicate_sprite(request: SpriteDuplicateRequest):
             apply_variation=request.apply_variation,
             variation_type=request.variation_type
         )
+
+        req_logger.info(f"Sprite duplicated successfully: {new_sprite.get('id')}")
         return new_sprite
-        
+
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        req_logger.error(f"Sprite not found or invalid name: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Sprite not found or invalid name: {str(e)}")
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Project file not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail="GBStudio project file not found. Please check configuration.")
+
     except Exception as e:
-        logger.error(f"Sprite duplication failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Sprite duplication failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during sprite duplication. Please try again later.")
 
 
-@app.post("/api/v1/sprites/export")
+@app.post("/api/v1/sprites/export", dependencies=[Depends(verify_api_key)])
 async def export_sprite(request: SpriteExportRequest):
     """Export sprite as standalone PNG"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'sprite_id': request.sprite_id
+    })
+
     try:
+        req_logger.info(f"Exporting sprite: {request.sprite_id}")
         manager = create_sprite_manager(settings.gbstudio_project_path)
         output_path = f"{settings.temp_outputs_path}/export_{request.sprite_id}.png"
         result_path = manager.export_sprite(
@@ -1025,76 +1173,159 @@ async def export_sprite(request: SpriteExportRequest):
             export_format=request.export_format,
             scale=request.scale
         )
-        
+
+        req_logger.info(f"Sprite exported successfully: {result_path}")
         return {
             "sprite_id": request.sprite_id,
             "export_path": result_path,
             "format": request.export_format,
             "scale": request.scale
         }
-        
+
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        req_logger.error(f"Sprite not found or invalid parameters: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Sprite not found or invalid parameters: {str(e)}")
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Project file not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail="GBStudio project file not found. Please check configuration.")
+
+    except PermissionError as e:
+        req_logger.error(f"Permission denied writing export: {e}", exc_info=True)
+        raise HTTPException(status_code=403, detail="Permission denied. Cannot write export file.")
+
     except Exception as e:
-        logger.error(f"Sprite export failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Sprite export failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during sprite export. Please try again later.")
 
 
-@app.get("/api/v1/sprites")
-async def list_sprites(filter_type: Optional[str] = None, search_name: Optional[str] = None):
-    """List all sprites in project with optional filtering"""
+@app.get("/api/v1/sprites", dependencies=[Depends(verify_api_key)])
+async def list_sprites(
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    filter_type: Optional[str] = None,
+    search_name: Optional[str] = None
+):
+    """List all sprites in project with optional filtering and pagination"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id
+    })
+
     try:
+        req_logger.info(f"Listing sprites (filter: {filter_type}, search: {search_name})")
         manager = create_sprite_manager(settings.gbstudio_project_path)
-        sprites = manager.list_sprites(filter_type=filter_type, search_name=search_name)
-        
+        all_sprites = manager.list_sprites(filter_type=filter_type, search_name=search_name)
+
+        # Paginate
+        total = len(all_sprites)
+        paginated_sprites = all_sprites[offset:offset+limit]
+
+        req_logger.info(f"Listed {len(paginated_sprites)} sprites (total: {total})")
         return {
-            "total": len(sprites),
-            "sprites": sprites
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + limit < total,
+            "sprites": paginated_sprites
         }
-        
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Project file not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail="GBStudio project file not found. Please check configuration.")
+
     except Exception as e:
-        logger.error(f"List sprites failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"List sprites failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error while listing sprites. Please try again later.")
 
 
-@app.get("/api/v1/sprites/{sprite_id}")
+@app.get("/api/v1/sprites/{sprite_id}", dependencies=[Depends(verify_api_key)])
 async def get_sprite_info(sprite_id: str):
     """Get detailed information about a sprite"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'sprite_id': sprite_id
+    })
+
     try:
+        req_logger.info(f"Getting sprite info: {sprite_id}")
         manager = create_sprite_manager(settings.gbstudio_project_path)
         info = manager.get_sprite_info(sprite_id)
+
+        req_logger.info(f"Sprite info retrieved: {sprite_id}")
         return info
-        
+
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        req_logger.error(f"Sprite not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Sprite not found: {str(e)}")
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Project file not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail="GBStudio project file not found. Please check configuration.")
+
     except Exception as e:
-        logger.error(f"Get sprite info failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Get sprite info failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error while retrieving sprite info. Please try again later.")
 
 
 # ============================================================================
 # Batch Generation Endpoints
 # ============================================================================
 
-@app.post("/api/v1/batch/csv")
+@app.post("/api/v1/batch/csv", dependencies=[Depends(verify_api_key)])
 async def process_batch_csv(request: BatchCSVRequest, _rate_limit = Depends(check_rate_limit)):
     """Process CSV file with batch sprite requests"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'session_id': request.session_id
+    })
+
     try:
+        req_logger.info(f"Processing batch CSV: {request.csv_path}")
         generator = create_batch_generator(task_queue)
         result = await generator.process_csv(csv_path=request.csv_path, session_id=request.session_id)
+
+        req_logger.info(f"Batch CSV processing completed: {result.get('total_tasks', 0)} tasks")
         return result
-        
+
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        req_logger.error(f"CSV file not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"CSV file not found: {str(e)}")
+
+    except ValueError as e:
+        req_logger.error(f"Invalid CSV format: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Invalid CSV format: {str(e)}")
+
+    except asyncio.TimeoutError:
+        req_logger.error("Batch CSV processing timed out", exc_info=True)
+        raise HTTPException(status_code=504, detail="Batch processing timed out. Please try with fewer items.")
+
+    except aiohttp.ClientError as e:
+        req_logger.error(f"Service unavailable for batch processing: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Generation service unavailable. Please check service status.")
+
     except Exception as e:
-        logger.error(f"CSV batch processing failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"CSV batch processing failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during batch processing. Please try again later.")
 
 
-@app.post("/api/v1/batch/character-set")
+@app.post("/api/v1/batch/character-set", dependencies=[Depends(verify_api_key)])
 async def generate_character_set(request: CharacterSetRequest, _rate_limit = Depends(check_rate_limit)):
     """Generate complete animation set for a character"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'session_id': request.session_id
+    })
+
     try:
+        req_logger.info(f"Generating character set for: {request.character_name}")
         generator = create_batch_generator(task_queue)
         result = await generator.generate_character_set(
             character_name=request.character_name,
@@ -1102,83 +1333,174 @@ async def generate_character_set(request: CharacterSetRequest, _rate_limit = Dep
             session_id=request.session_id,
             include_actions=request.include_actions
         )
+
+        req_logger.info(f"Character set generation queued: {result.get('total_tasks', 0)} tasks")
         return result
-        
+
+    except ValueError as e:
+        req_logger.error(f"Invalid character set parameters: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Invalid parameters: {str(e)}")
+
+    except asyncio.TimeoutError:
+        req_logger.error("Character set generation timed out", exc_info=True)
+        raise HTTPException(status_code=504, detail="Character set generation timed out. Please try again.")
+
+    except aiohttp.ClientError as e:
+        req_logger.error(f"Service unavailable for character set: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Generation service unavailable. Please check service status.")
+
     except Exception as e:
-        logger.error(f"Character set generation failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Character set generation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during character set generation. Please try again later.")
 
 
-@app.post("/api/v1/batch/template")
+@app.post("/api/v1/batch/template", dependencies=[Depends(verify_api_key)])
 async def apply_project_template(request: ProjectTemplateRequest, _rate_limit = Depends(check_rate_limit)):
     """Apply project template to generate multiple sprites"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'session_id': request.session_id
+    })
+
     try:
+        req_logger.info(f"Applying project template: {request.template_name}")
         generator = create_batch_generator(task_queue)
         result = await generator.apply_project_template(
             template_name=request.template_name,
             session_id=request.session_id
         )
+
+        req_logger.info(f"Template applied successfully: {result.get('total_tasks', 0)} tasks")
         return result
-        
+
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        req_logger.error(f"Template not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Template not found: {str(e)}")
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Template file not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Template file not found: {str(e)}")
+
+    except asyncio.TimeoutError:
+        req_logger.error("Template application timed out", exc_info=True)
+        raise HTTPException(status_code=504, detail="Template application timed out. Please try again.")
+
+    except aiohttp.ClientError as e:
+        req_logger.error(f"Service unavailable for template: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Generation service unavailable. Please check service status.")
+
     except Exception as e:
-        logger.error(f"Template application failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Template application failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during template application. Please try again later.")
 
 
-@app.get("/api/v1/batch/{batch_id}/status")
-async def get_batch_status(batch_id: str, task_ids: List[str]):
-    """Get status of batch generation"""
+@app.get("/api/v1/batch/{batch_id}/status", dependencies=[Depends(verify_api_key)])
+async def get_batch_status(
+    batch_id: str,
+    task_ids: List[str],
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0)
+):
+    """Get status of batch generation with pagination"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'batch_id': batch_id
+    })
+
     try:
+        req_logger.info(f"Checking batch status for {len(task_ids)} tasks")
+
+        if not task_ids:
+            raise ValueError("task_ids cannot be empty")
+
         generator = create_batch_generator(task_queue)
         status = generator.get_batch_status(task_ids)
-        
+
+        # Paginate task results if available
+        if "tasks" in status and isinstance(status["tasks"], list):
+            all_tasks = status["tasks"]
+            total_tasks = len(all_tasks)
+            paginated_tasks = all_tasks[offset:offset+limit]
+
+            return {
+                "batch_id": batch_id,
+                **{k: v for k, v in status.items() if k != "tasks"},
+                "total": total_tasks,
+                "limit": limit,
+                "offset": offset,
+                "has_more": offset + limit < total_tasks,
+                "tasks": paginated_tasks
+            }
+
+        # If no tasks list, return original status with pagination metadata
         return {
             "batch_id": batch_id,
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+            "has_more": False,
             **status
         }
-        
+
+    except ValueError as e:
+        req_logger.error(f"Invalid batch status request: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Invalid request: {str(e)}")
+
     except Exception as e:
-        logger.error(f"Batch status check failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Batch status check failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error while checking batch status. Please try again later.")
 
 
 # ============================================================================
 # Knowledge Base Admin Endpoints
 # ============================================================================
 
-@app.get("/api/v1/admin/kb/documents")
-async def list_kb_documents(filter_type: Optional[str] = None):
-    """List all documents in knowledge base"""
+@app.get("/api/v1/admin/kb/documents", dependencies=[Depends(verify_api_key)])
+async def list_kb_documents(
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    filter_type: Optional[str] = None
+):
+    """List all documents in knowledge base with pagination"""
     try:
         from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
-        documents = admin.list_documents(filter_type=filter_type)
-        
+        all_documents = admin.list_documents(filter_type=filter_type)
+
+        # Paginate
+        total = len(all_documents)
+        paginated_documents = all_documents[offset:offset+limit]
+
         return {
-            "total": len(documents),
-            "documents": documents
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + limit < total,
+            "documents": paginated_documents
         }
-        
+
     except Exception as e:
         logger.error(f"List KB documents failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/admin/kb/documents/{doc_id}")
+@app.get("/api/v1/admin/kb/documents/{doc_id}", dependencies=[Depends(verify_api_key)])
 async def get_kb_document_details(doc_id: str):
     """Get full details for a specific document"""
     try:
         from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         details = admin.get_document_details(doc_id)
-        
+
         if not details:
             raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
-        
+
         return details
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1186,65 +1508,147 @@ async def get_kb_document_details(doc_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/v1/admin/kb/reindex")
+@app.post("/api/v1/admin/kb/reindex", dependencies=[Depends(verify_api_key)])
 async def reindex_document(source_file: str):
     """Re-index a specific document"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'source_file': source_file
+    })
+
     try:
+        req_logger.info(f"Re-indexing document: {source_file}")
         from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
-        result = admin.reindex_document(source_file)
+        result = await admin.reindex_document(source_file)
+
+        req_logger.info(f"Document re-indexed successfully: {source_file}")
         return result
-        
+
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        req_logger.error(f"Document file not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Document not found: {str(e)}")
+
+    except asyncio.TimeoutError:
+        req_logger.error("KB reindex timed out", exc_info=True)
+        raise HTTPException(status_code=504, detail="Document re-indexing timed out. Please try again.")
+
+    except aiohttp.ClientError as e:
+        req_logger.error(f"Embedding service unavailable: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Embedding service unavailable. Please check service status.")
+
     except Exception as e:
-        logger.error(f"Document re-indexing failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Document re-indexing failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during re-indexing. Please try again later.")
 
 
 @app.post("/api/v1/admin/kb/upload", dependencies=[Depends(verify_api_key)])
 async def upload_kb_document(request: DocumentUploadRequest):
     """Upload new document to knowledge base (requires API key)"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'filename': request.filename
+    })
+
     try:
+        req_logger.info(f"Uploading document to KB: {request.filename}")
         from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
-        result = admin.upload_document(filename=request.filename, content=request.content)
+        result = await admin.upload_document(filename=request.filename, content=request.content)
+
+        req_logger.info(f"Document uploaded successfully: {request.filename}")
         return result
-        
+
+    except ValueError as e:
+        req_logger.error(f"Invalid document upload: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Invalid document: {str(e)}")
+
+    except asyncio.TimeoutError:
+        req_logger.error("KB upload timed out", exc_info=True)
+        raise HTTPException(status_code=504, detail="Document upload timed out. Please try again.")
+
+    except aiohttp.ClientError as e:
+        req_logger.error(f"Embedding service unavailable: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Embedding service unavailable. Please check service status.")
+
     except Exception as e:
-        logger.error(f"Document upload failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Document upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during document upload. Please try again later.")
 
 
-@app.delete("/api/v1/admin/kb/documents")
+@app.delete("/api/v1/admin/kb/documents", dependencies=[Depends(verify_api_key)])
 async def delete_kb_document(source_file: str):
     """Delete document from knowledge base"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'source_file': source_file
+    })
+
     try:
+        req_logger.info(f"Deleting document from KB: {source_file}")
         from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.delete_document(source_file)
+
+        req_logger.info(f"Document deleted successfully: {source_file}")
         return result
-        
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Document not found for deletion: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Document not found: {str(e)}")
+
+    except ValueError as e:
+        req_logger.error(f"Invalid delete request: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Invalid request: {str(e)}")
+
     except Exception as e:
-        logger.error(f"Document deletion failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"Document deletion failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during document deletion. Please try again later.")
 
 
-@app.post("/api/v1/admin/kb/search-test")
+@app.post("/api/v1/admin/kb/search-test", dependencies=[Depends(verify_api_key)])
 async def test_kb_search(request: SearchTestRequest):
     """Test knowledge base search functionality"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'query': request.query[:50]
+    })
+
     try:
+        req_logger.info(f"Testing KB search: {request.query[:50]}...")
         from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
-        results = admin.test_search(query=request.query, limit=request.limit)
+        results = await admin.test_search(query=request.query, limit=request.limit)
+
+        req_logger.info(f"KB search test completed: {len(results.get('results', []))} results")
         return results
-        
+
+    except ValueError as e:
+        req_logger.error(f"Invalid search query: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Invalid query: {str(e)}")
+
+    except asyncio.TimeoutError:
+        req_logger.error("KB search timed out", exc_info=True)
+        raise HTTPException(status_code=504, detail="Search request timed out. Please try a more specific query.")
+
+    except aiohttp.ClientError as e:
+        req_logger.error(f"Embedding service unavailable: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Embedding service unavailable. Please check service status.")
+
     except Exception as e:
-        logger.error(f"KB search test failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"KB search test failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during search. Please try again later.")
 
 
-@app.get("/api/v1/admin/kb/stats")
+@app.get("/api/v1/admin/kb/stats", dependencies=[Depends(verify_api_key)])
 async def get_kb_statistics():
     """Get knowledge base statistics"""
     try:
@@ -1258,18 +1662,39 @@ async def get_kb_statistics():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/v1/admin/kb/rebuild")
+@app.post("/api/v1/admin/kb/rebuild", dependencies=[Depends(verify_api_key)])
 async def rebuild_kb_index():
     """Rebuild entire knowledge base from source files"""
+    correlation_id = generate_correlation_id()
+
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id
+    })
+
     try:
+        req_logger.info("Rebuilding knowledge base index")
         from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
-        result = admin.rebuild_index()
+        result = await admin.rebuild_index()
+
+        req_logger.info(f"KB rebuild completed: {result.get('documents_indexed', 0)} documents indexed")
         return result
-        
+
+    except FileNotFoundError as e:
+        req_logger.error(f"Project docs directory not found: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Project docs directory not found: {str(e)}")
+
+    except asyncio.TimeoutError:
+        req_logger.error("KB rebuild timed out", exc_info=True)
+        raise HTTPException(status_code=504, detail="Knowledge base rebuild timed out. Please try again.")
+
+    except aiohttp.ClientError as e:
+        req_logger.error(f"Embedding service unavailable: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Embedding service unavailable. Please check service status.")
+
     except Exception as e:
-        logger.error(f"KB rebuild failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        req_logger.error(f"KB rebuild failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during KB rebuild. Please try again later.")
 
 
 if __name__ == "__main__":

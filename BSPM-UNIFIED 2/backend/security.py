@@ -160,12 +160,27 @@ class RateLimiter:
             for bucket_id, (_, last_refill) in self.buckets.items()
             if current_time - last_refill > max_age
         ]
-        
+
         for bucket_id in to_remove:
             del self.buckets[bucket_id]
-        
+
         if to_remove:
             logger.debug(f"Cleaned up {len(to_remove)} old rate limit buckets")
+
+        return len(to_remove)
+
+    def cleanup_stale_buckets(self, max_age_seconds: int = 3600):
+        """
+        Remove buckets for IPs not seen in max_age_seconds.
+
+        Args:
+            max_age_seconds: Maximum age in seconds for keeping buckets
+
+        Returns:
+            Number of buckets removed
+        """
+        # Alias for cleanup_old_buckets to match the requirement
+        return self.cleanup_old_buckets(max_age=max_age_seconds)
 
 
 class InputSanitizer:

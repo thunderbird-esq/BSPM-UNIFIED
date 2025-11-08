@@ -421,19 +421,63 @@ class RegenerationManager:
         """Score motion range (0-1). Ideal is 0.05-0.3."""
         if len(motion_range) != 2:
             return 0.0
-        
+
         min_motion, max_motion = motion_range
-        
+
         # Ideal range
         if 0.05 <= min_motion <= 0.3 and 0.05 <= max_motion <= 0.3:
             return 1.0
-        
+
         # Acceptable range
         if 0.01 <= min_motion <= 0.5 and 0.01 <= max_motion <= 0.5:
             return 0.7
-        
+
         # Outside acceptable range
         return 0.3
+
+    def cleanup_old_sessions(self, max_age_hours: int = 24):
+        """
+        Clean up regeneration sessions older than max_age_hours.
+
+        Args:
+            max_age_hours: Maximum age in hours for keeping sessions
+
+        Returns:
+            Number of sessions removed
+        """
+        if not self.sessions:
+            return 0
+
+        current_time = datetime.now()
+        sessions_to_remove = []
+
+        for session_id, session in self.sessions.items():
+            # Check the timestamp of the most recent attempt
+            if session.attempts:
+                latest_attempt = max(session.attempts, key=lambda a: a.timestamp)
+                age_hours = (current_time - latest_attempt.timestamp).total_seconds() / 3600
+
+                if age_hours > max_age_hours:
+                    sessions_to_remove.append(session_id)
+            else:
+                # Session with no attempts - remove it
+                sessions_to_remove.append(session_id)
+
+        # Remove old sessions
+        for session_id in sessions_to_remove:
+            del self.sessions[session_id]
+
+        if sessions_to_remove:
+            logger.info(
+                f"Cleaned up {len(sessions_to_remove)} old regeneration sessions",
+                extra={
+                    'removed_count': len(sessions_to_remove),
+                    'max_age_hours': max_age_hours,
+                    'remaining_sessions': len(self.sessions)
+                }
+            )
+
+        return len(sessions_to_remove)
 
 
 # Global regeneration manager instance

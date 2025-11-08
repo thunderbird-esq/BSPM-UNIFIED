@@ -410,6 +410,62 @@ class TaskQueue:
             'resource_overload': self.resource_monitor.is_overloaded if self.resource_monitor else False
         }
 
+    def prune_history(self, max_items: int = 1000):
+        """
+        Prune task history to keep only the most recent max_items tasks.
+
+        Removes oldest completed and failed tasks to prevent unbounded memory growth.
+
+        Args:
+            max_items: Maximum number of tasks to keep in history (combined completed + failed)
+
+        Returns:
+            Number of tasks removed
+        """
+        total_history = len(self.completed_tasks) + len(self.failed_tasks)
+
+        if total_history <= max_items:
+            return 0
+
+        # Combine all historical tasks with their completion times
+        all_tasks = []
+
+        for task_id, task in self.completed_tasks.items():
+            all_tasks.append((task_id, task.completed_at, 'completed'))
+
+        for task_id, task in self.failed_tasks.items():
+            all_tasks.append((task_id, task.completed_at, 'failed'))
+
+        # Sort by completion time (oldest first)
+        all_tasks.sort(key=lambda x: x[1] if x[1] else datetime.min)
+
+        # Calculate how many to remove
+        to_remove_count = total_history - max_items
+        tasks_to_remove = all_tasks[:to_remove_count]
+
+        # Remove old tasks
+        removed_count = 0
+        for task_id, _, task_type in tasks_to_remove:
+            if task_type == 'completed' and task_id in self.completed_tasks:
+                del self.completed_tasks[task_id]
+                removed_count += 1
+            elif task_type == 'failed' and task_id in self.failed_tasks:
+                del self.failed_tasks[task_id]
+                removed_count += 1
+
+        if removed_count > 0:
+            logger.info(
+                f"Pruned {removed_count} old tasks from history",
+                extra={
+                    'removed_count': removed_count,
+                    'max_items': max_items,
+                    'remaining_completed': len(self.completed_tasks),
+                    'remaining_failed': len(self.failed_tasks)
+                }
+            )
+
+        return removed_count
+
 
 # Global task queue instance
 task_queue = TaskQueue(

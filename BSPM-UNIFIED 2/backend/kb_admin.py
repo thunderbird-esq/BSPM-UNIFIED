@@ -151,38 +151,38 @@ class KnowledgeBaseAdmin:
             'word_count': len(doc.content.split())
         }
     
-    def reindex_document(self, source_file: str) -> Dict[str, Any]:
+    async def reindex_document(self, source_file: str) -> Dict[str, Any]:
         """
         Re-index a specific source file.
-        
+
         Args:
             source_file: Source file path (relative to docs_dir)
-        
+
         Returns:
             Re-indexing summary
         """
         file_path = self.docs_dir / source_file
-        
+
         if not file_path.exists():
             raise FileNotFoundError(f"Document not found: {file_path}")
-        
+
         # Remove existing chunks for this file
         removed_count = 0
         doc_ids_to_remove = []
-        
+
         for doc_id, doc in self.kb.documents.items():
             if doc.metadata.get('source_file') == source_file:
                 doc_ids_to_remove.append(doc_id)
-        
+
         for doc_id in doc_ids_to_remove:
-            del self.kb.documents[doc_id]
+            self.kb.documents.pop(doc_id, None)  # Safe removal
             removed_count += 1
-        
+
         # Re-index
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        
-        chunk_ids = self.kb.add_project_document(content, source_file)
+
+        chunk_ids = await self.kb.add_project_document(content, source_file)
         
         logger.info(
             f"Re-indexed {source_file}: removed {removed_count} old chunks, added {len(chunk_ids)} new chunks",
@@ -200,27 +200,27 @@ class KnowledgeBaseAdmin:
             'new_doc_ids': chunk_ids
         }
     
-    def upload_document(
+    async def upload_document(
         self,
         filename: str,
         content: str
     ) -> Dict[str, Any]:
         """
         Upload new document to knowledge base.
-        
+
         Args:
             filename: Document filename (should end with .md)
             content: Document content
-        
+
         Returns:
             Upload summary
         """
         # Sanitize filename
         if not filename.endswith('.md'):
             filename = filename + '.md'
-        
+
         filename = filename.replace('..', '').replace('/', '_').replace('\\', '_')
-        
+
         # Save to docs directory
         file_path = self.docs_dir / filename
 
@@ -228,7 +228,7 @@ class KnowledgeBaseAdmin:
             f.write(content)
 
         # Index - pass file path and document type
-        chunk_ids = self.kb.add_project_document(
+        chunk_ids = await self.kb.add_project_document(
             filepath=str(file_path),
             doc_type=filename.replace('.md', '')
         )
@@ -266,9 +266,9 @@ class KnowledgeBaseAdmin:
                 doc_ids_to_remove.append(doc_id)
         
         for doc_id in doc_ids_to_remove:
-            del self.kb.documents[doc_id]
+            self.kb.documents.pop(doc_id, None)  # Safe removal
             removed_count += 1
-        
+
         # Delete file if exists
         file_deleted = False
         if file_path.exists():
@@ -290,22 +290,22 @@ class KnowledgeBaseAdmin:
             'file_deleted': file_deleted
         }
     
-    def test_search(
+    async def test_search(
         self,
         query: str,
         limit: int = 5
     ) -> Dict[str, Any]:
         """
         Test search functionality with detailed results.
-        
+
         Args:
             query: Search query
             limit: Number of results
-        
+
         Returns:
             Search results with scores and metadata
         """
-        results = self.kb.search(query, limit=limit)
+        results = await self.kb.search(query, limit=limit)
         
         return {
             'query': query,
@@ -347,46 +347,46 @@ class KnowledgeBaseAdmin:
             'total_files': len(file_stats)
         }
     
-    def rebuild_index(self) -> Dict[str, Any]:
+    async def rebuild_index(self) -> Dict[str, Any]:
         """
         Rebuild entire knowledge base from source files.
-        
+
         Returns:
             Rebuild summary
         """
         # Get all markdown files
         md_files = list(self.docs_dir.glob('**/*.md'))
-        
+
         if not md_files:
             return {
                 'status': 'no_files',
                 'message': 'No markdown files found in docs directory'
             }
-        
+
         # Clear existing project docs
         doc_ids_to_remove = [
             doc_id for doc_id, doc in self.kb.documents.items()
             if doc.metadata.get('type') == 'project_doc'
         ]
-        
+
         for doc_id in doc_ids_to_remove:
-            del self.kb.documents[doc_id]
-        
+            self.kb.documents.pop(doc_id, None)  # Safe removal
+
         # Re-index all files
         total_chunks = 0
         processed_files = []
-        
+
         for md_file in md_files:
             try:
                 with open(md_file, 'r', encoding='utf-8') as f:
                     content = f.read()
-                
+
                 rel_path = md_file.relative_to(self.docs_dir)
-                chunk_ids = self.kb.add_project_document(content, str(rel_path))
-                
+                chunk_ids = await self.kb.add_project_document(content, str(rel_path))
+
                 total_chunks += len(chunk_ids)
                 processed_files.append(str(rel_path))
-                
+
             except Exception as e:
                 logger.error(f"Failed to index {md_file}: {e}")
         
