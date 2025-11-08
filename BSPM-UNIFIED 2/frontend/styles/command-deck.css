@@ -1,0 +1,220 @@
+/**
+ * GBStudio Automation Hub - Command Deck (Service Monitor)
+ * Version: 3.1
+ * Platform: Intel Mac (macOS Ventura) + Docker
+ * 
+ * Service status dashboard with real-time health monitoring
+ */
+
+/* ============================================================================
+   Service Monitor Container
+   ============================================================================ */
+#service-monitor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+/* ============================================================================
+   Service Row - Individual Service Status
+   ============================================================================ */
+.service-row {
+    display: grid;
+    grid-template-columns: 12px 1fr auto auto;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background-color: var(--gb-darkest);
+    border: 1px solid var(--gb-dark);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    transition: background-color 0.2s ease;
+}
+
+.service-row:hover {
+    background-color: var(--gb-dark);
+    border-color: var(--gb-light);
+}
+
+/* ============================================================================
+   Service Name
+   ============================================================================ */
+.service-name {
+    color: var(--text-primary);
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ============================================================================
+   Status Text
+   ============================================================================ */
+.status-text {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.status-text.status-online,
+.status-text.status-healthy {
+    color: var(--gb-light);
+}
+
+.status-text.status-degraded {
+    color: #f0ad4e;
+}
+
+.status-text.status-offline,
+.status-text.status-unhealthy {
+    color: #d9534f;
+}
+
+.status-text.status-unknown {
+    color: var(--text-secondary);
+}
+
+/* ============================================================================
+   Latency Display
+   ============================================================================ */
+.latency-text {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background-color: var(--gb-dark);
+    border: 1px solid var(--gb-light);
+    white-space: nowrap;
+}
+
+.latency-text.latency-good {
+    color: var(--gb-light);
+    border-color: var(--gb-light);
+}
+
+.latency-text.latency-medium {
+    color: #f0ad4e;
+    border-color: #f0ad4e;
+}
+
+.latency-text.latency-slow {
+    color: #d9534f;
+    border-color: #d9534f;
+}
+
+/* ============================================================================
+   Loading State
+   ============================================================================ */
+.service-row.loading {
+    opacity: 0.6;
+}
+
+.service-row.loading .status-dot {
+    animation: pulse 1s ease-in-out infinite;
+}
+
+/* ============================================================================
+   Service Details (Expandable Info)
+   ============================================================================ */
+.service-details {
+    grid-column: 1 / -1;
+    margin-top: var(--spacing-xs);
+    padding: var(--spacing-xs);
+    background-color: var(--gb-darkest);
+    border-top: 1px solid var(--gb-dark);
+    font-size: 9px;
+    color: var(--text-secondary);
+    display: none;
+}
+
+.service-row.expanded .service-details {
+    display: block;
+}
+
+.service-detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+}
+
+.service-detail-label {
+    color: var(--text-secondary);
+}
+
+.service-detail-value {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+/* ============================================================================
+   Monitor Header
+   ============================================================================ */
+.monitor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.monitor-refresh-btn {
+    font-size: 8px;
+    padding: 4px 8px;
+}
+
+/* ============================================================================
+   Overall Status Indicator
+   ============================================================================ */
+.overall-status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
+    background-color: var(--gb-darkest);
+    border: 2px solid var(--gb-dark);
+    margin-bottom: var(--spacing-md);
+    font-family: var(--font-pixel);
+    font-size: 8px;
+}
+
+.overall-status.all-healthy {
+    border-color: var(--gb-light);
+}
+
+.overall-status.some-degraded {
+    border-color: #f0ad4e;
+}
+
+.overall-status.some-unhealthy {
+    border-color: #d9534f;
+}
+
+/* ============================================================================
+   Empty State
+   ============================================================================ */
+.monitor-empty {
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--text-secondary);
+    font-family: var(--font-pixel);
+    font-size: 8px;
+}
+
+/* ============================================================================
+   Responsive - Mobile
+   ============================================================================ */
+@media (max-width: 768px) {
+    .service-row {
+        grid-template-columns: 12px 1fr;
+        grid-template-rows: auto auto;
+    }
+    
+    .status-text {
+        grid-column: 2;
+    }
+    
+    .latency-text {
+        grid-column: 2;
+        justify-self: start;
+    }
+}
