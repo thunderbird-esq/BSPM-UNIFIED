@@ -2,8 +2,9 @@
 
 AI-powered sprite generation system for Game Boy Color game development.
 
-**Version:** 3.2  
-**Platform:** Intel Mac (macOS Ventura 13.x) + Docker Desktop 4.25+
+**Version:** 3.3
+**Platform:** macOS (Intel & Apple Silicon) + Docker Desktop 4.25+
+**Apple Silicon:** Supported via Rosetta 2 emulation
 
 ---
 
@@ -24,28 +25,33 @@ System: Generates → Validates → Integrates → Done (3-4 min)
 ## Quick Start
 
 ```bash
-# 1. Initial setup (first time only)
-./scripts/setup.sh
+# 1. Ensure Ollama is running locally with required models
+ollama pull llama3:8b
+ollama pull nomic-embed-text
 
 # 2. Start services
 ./start.sh
 
-# 3. Initialize knowledge base
-./scripts/init-kb.sh
-
-# 4. Open browser
+# 3. Open browser
 open http://localhost:8000
 ```
+
+**First-time setup:** The first start will build Docker images (~5 minutes).
+
+**Troubleshooting:** See [FIXES_APPLIED.md](./FIXES_APPLIED.md) for detailed setup information and common issues.
 
 ---
 
 ## Requirements
 
-- **Hardware**: Intel Mac (x86_64 architecture)
+- **Hardware**: Mac (Intel x86_64 or Apple Silicon arm64)
 - **OS**: macOS Ventura 13.x or later
-- **Docker**: Docker Desktop 4.25+ running
+- **Docker**: Docker Desktop 4.25+ with Rosetta 2 enabled (Apple Silicon)
+- **Ollama**: Local installation with `llama3:8b` and `nomic-embed-text` models
 - **RAM**: 8GB minimum (16GB recommended)
 - **Disk**: 20GB free space
+
+> **Note for Apple Silicon users:** This system uses Rosetta 2 to run x86_64 containers. Ensure Rosetta 2 is enabled in Docker Desktop settings.
 
 ---
 
