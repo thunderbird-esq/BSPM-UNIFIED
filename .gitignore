@@ -1,0 +1,36 @@
+# macOS metadata
+__MACOSX/
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Logs
+*.log
+*.jsonl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project-specific
+app/logs/
+app/secrets/
+temp_outputs/
+vectorstore/
+agent_memory/
+comfyui_models/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
