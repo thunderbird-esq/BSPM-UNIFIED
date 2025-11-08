@@ -1,0 +1,824 @@
+/**
+ * Medium-Priority Features Styling
+ * Version: 3.2
+ * 
+ * Styles for style presets, regeneration, sprite manager, batch ops, and KB admin.
+ */
+
+/* ============================================================================
+   Style Preset Selector
+   ============================================================================ */
+
+.preset-selector {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: #306230;
+    border: 2px solid #0f380f;
+}
+
+.preset-selector label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+    color: #9bbc0f;
+}
+
+.preset-dropdown {
+    width: 100%;
+    padding: 0.5rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    border: 2px solid #8bac0f;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.8rem;
+}
+
+.preset-description {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: #0f380f;
+    color: #8bac0f;
+    font-size: 0.7rem;
+    line-height: 1.4;
+}
+
+.preset-params {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 1rem;
+}
+
+.preset-params .param {
+    padding: 0.25rem 0.5rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    font-size: 0.7rem;
+}
+
+/* ============================================================================
+   Regeneration UI
+   ============================================================================ */
+
+.regeneration-controls {
+    margin: 1rem 0;
+    display: flex;
+    gap: 1rem;
+}
+
+.btn-regenerate,
+.btn-compare {
+    padding: 0.75rem 1.5rem;
+    background: #306230;
+    color: #9bbc0f;
+    border: 2px solid #8bac0f;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.btn-regenerate:hover,
+.btn-compare:hover {
+    background: #8bac0f;
+    color: #0f380f;
+}
+
+.btn-regenerate:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Comparison Modal */
+.comparison-modal {
+    max-width: 1200px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.comparison-info {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #306230;
+    border: 2px solid #0f380f;
+}
+
+.comparison-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.attempt-card {
+    background: #306230;
+    border: 2px solid #8bac0f;
+    padding: 1rem;
+}
+
+.attempt-card.best-attempt {
+    border-color: #9bbc0f;
+    box-shadow: 0 0 10px rgba(155, 188, 15, 0.5);
+}
+
+.attempt-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.attempt-number {
+    font-weight: bold;
+    color: #9bbc0f;
+}
+
+.best-badge {
+    background: #9bbc0f;
+    color: #0f380f;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+}
+
+.attempt-preview {
+    margin: 1rem 0;
+    background: #0f380f;
+    padding: 0.5rem;
+    text-align: center;
+}
+
+.attempt-preview img {
+    max-width: 100%;
+    image-rendering: pixelated;
+}
+
+.attempt-info {
+    margin: 1rem 0;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.5rem 0;
+    font-size: 0.7rem;
+}
+
+.info-row .label {
+    color: #8bac0f;
+}
+
+.info-row .value {
+    color: #9bbc0f;
+    font-weight: bold;
+}
+
+.score-high { color: #9bbc0f; }
+.score-medium { color: #8bac0f; }
+.score-low { color: #306230; }
+
+.attempt-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.btn-mark-best,
+.btn-view-details {
+    padding: 0.5rem;
+    font-size: 0.7rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    border: 1px solid #8bac0f;
+    cursor: pointer;
+}
+
+.btn-mark-best:hover,
+.btn-view-details:hover {
+    background: #8bac0f;
+    color: #0f380f;
+}
+
+/* ============================================================================
+   Sprite Manager
+   ============================================================================ */
+
+.sprite-manager {
+    padding: 1rem;
+}
+
+.manager-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.manager-controls {
+    display: flex;
+    gap: 1rem;
+}
+
+#sprite-search {
+    padding: 0.5rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    border: 2px solid #8bac0f;
+    font-family: monospace;
+}
+
+#sprite-filter {
+    padding: 0.5rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    border: 2px solid #8bac0f;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7rem;
+}
+
+.sprite-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.sprite-card {
+    background: #306230;
+    border: 2px solid #8bac0f;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.sprite-preview {
+    background: #0f380f;
+    padding: 0.5rem;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.sprite-preview img {
+    max-width: 100%;
+    image-rendering: pixelated;
+}
+
+.sprite-info {
+    flex: 1;
+}
+
+.sprite-name {
+    color: #9bbc0f;
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+}
+
+.sprite-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    color: #8bac0f;
+}
+
+.sprite-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.btn-icon {
+    flex: 1;
+    padding: 0.5rem;
+    background: #0f380f;
+    border: 1px solid #8bac0f;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.btn-icon:hover {
+    background: #8bac0f;
+}
+
+.btn-delete:hover {
+    background: #d32f2f;
+    border-color: #d32f2f;
+}
+
+.no-sprites {
+    text-align: center;
+    color: #8bac0f;
+    padding: 2rem;
+}
+
+/* ============================================================================
+   Batch Operations
+   ============================================================================ */
+
+.batch-operations {
+    padding: 1rem;
+}
+
+.batch-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 0.75rem;
+    background: #306230;
+    color: #8bac0f;
+    border: 2px solid #8bac0f;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+}
+
+.tab-btn.active {
+    background: #8bac0f;
+    color: #0f380f;
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+/* CSV Upload */
+.csv-upload {
+    padding: 1rem;
+}
+
+.help-text {
+    color: #8bac0f;
+    font-size: 0.8rem;
+    margin: 0.5rem 0 1rem;
+    line-height: 1.4;
+}
+
+.help-text code {
+    background: #0f380f;
+    padding: 0.2rem 0.4rem;
+    color: #9bbc0f;
+}
+
+.upload-area {
+    border: 2px dashed #8bac0f;
+    padding: 2rem;
+    text-align: center;
+    background: #306230;
+    margin: 1rem 0;
+    cursor: pointer;
+}
+
+.upload-area.drag-over {
+    background: #8bac0f;
+    color: #0f380f;
+}
+
+.upload-label {
+    display: block;
+    cursor: pointer;
+    color: #9bbc0f;
+}
+
+.file-name {
+    margin-top: 0.5rem;
+    color: #9bbc0f;
+    font-weight: bold;
+}
+
+/* Character Set */
+.character-set {
+    padding: 1rem;
+}
+
+.checkbox-group {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #9bbc0f;
+    font-size: 0.8rem;
+}
+
+/* Template Selector */
+.template-selector {
+    padding: 1rem;
+}
+
+.template-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.template-card {
+    background: #306230;
+    border: 2px solid #8bac0f;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.template-card:hover {
+    background: #8bac0f;
+    color: #0f380f;
+    transform: scale(1.05);
+}
+
+.template-icon {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+}
+
+.template-card h4 {
+    color: #9bbc0f;
+    margin: 0.5rem 0;
+}
+
+.template-card p {
+    color: #8bac0f;
+    font-size: 0.8rem;
+    margin: 0.5rem 0;
+}
+
+.sprite-count {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.7rem;
+    color: #9bbc0f;
+}
+
+/* Active Batches */
+.active-batches-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 2px solid #8bac0f;
+}
+
+.batch-progress {
+    background: #306230;
+    border: 2px solid #8bac0f;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.batch-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.batch-name {
+    color: #9bbc0f;
+    font-weight: bold;
+}
+
+.batch-status {
+    color: #8bac0f;
+    font-size: 0.8rem;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #0f380f;
+    border: 1px solid #8bac0f;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #9bbc0f;
+    transition: width 0.3s;
+}
+
+/* ============================================================================
+   Knowledge Base Admin
+   ============================================================================ */
+
+.kb-admin {
+    padding: 1rem;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.admin-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* KB Stats */
+.kb-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: #306230;
+    border: 2px solid #8bac0f;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 2rem;
+    color: #9bbc0f;
+    font-weight: bold;
+}
+
+.stat-label {
+    margin-top: 0.5rem;
+    color: #8bac0f;
+    font-size: 0.8rem;
+}
+
+/* Documents Section */
+.documents-section {
+    margin-top: 2rem;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+#doc-type-filter {
+    padding: 0.5rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    border: 2px solid #8bac0f;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7rem;
+}
+
+.documents-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1rem;
+}
+
+.doc-card {
+    background: #306230;
+    border: 2px solid #8bac0f;
+    padding: 1rem;
+}
+
+.doc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.doc-type-badge {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    border: 1px solid #8bac0f;
+}
+
+.type-project_doc { border-color: #9bbc0f; }
+.type-conversation { border-color: #8bac0f; }
+.type-task { border-color: #306230; }
+
+.doc-source {
+    color: #8bac0f;
+    font-size: 0.7rem;
+}
+
+.doc-preview {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    max-height: 100px;
+    overflow-y: auto;
+}
+
+.doc-meta {
+    margin: 0.5rem 0;
+    font-size: 0.7rem;
+    color: #8bac0f;
+    display: flex;
+    justify-content: space-between;
+}
+
+.doc-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.7rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    border: 1px solid #8bac0f;
+    cursor: pointer;
+}
+
+.btn-sm:hover {
+    background: #8bac0f;
+    color: #0f380f;
+}
+
+/* KB Modal Specific */
+.kb-modal {
+    max-width: 800px;
+}
+
+.doc-details {
+    font-size: 0.8rem;
+}
+
+.detail-row {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: #306230;
+}
+
+.detail-content,
+.detail-metadata {
+    margin-top: 1rem;
+}
+
+.detail-content pre,
+.detail-metadata pre {
+    background: #0f380f;
+    color: #9bbc0f;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.7rem;
+}
+
+.search-results {
+    margin-top: 1rem;
+}
+
+.search-result {
+    background: #306230;
+    border: 2px solid #8bac0f;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.7rem;
+}
+
+.result-rank {
+    color: #9bbc0f;
+    font-weight: bold;
+}
+
+.result-distance {
+    color: #8bac0f;
+}
+
+.result-content {
+    padding: 0.5rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    margin: 0.5rem 0;
+    font-size: 0.7rem;
+}
+
+.result-meta {
+    font-size: 0.7rem;
+    color: #8bac0f;
+}
+
+/* ============================================================================
+   Shared Components
+   ============================================================================ */
+
+/* Form Groups */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #9bbc0f;
+    font-weight: bold;
+}
+
+.form-group input[type="text"],
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 0.5rem;
+    background: #0f380f;
+    color: #9bbc0f;
+    border: 2px solid #8bac0f;
+    font-family: monospace;
+}
+
+.form-group textarea {
+    resize: vertical;
+    font-size: 0.8rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+/* Buttons */
+.btn-primary {
+    padding: 0.75rem 1.5rem;
+    background: #9bbc0f;
+    color: #0f380f;
+    border: 2px solid #9bbc0f;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    background: #8bac0f;
+    border-color: #8bac0f;
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    padding: 0.75rem 1.5rem;
+    background: #306230;
+    color: #9bbc0f;
+    border: 2px solid #8bac0f;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background: #8bac0f;
+    color: #0f380f;
+}
+
+/* Notifications */
+.notification {
+    position: fixed;
+    top: -100px;
+    right: 2rem;
+    padding: 1rem 1.5rem;
+    background: #306230;
+    border: 2px solid #8bac0f;
+    color: #9bbc0f;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7rem;
+    z-index: 10000;
+    transition: top 0.3s;
+    max-width: 400px;
+}
+
+.notification.show {
+    top: 2rem;
+}
+
+.notification-success {
+    border-color: #9bbc0f;
+    background: #8bac0f;
+    color: #0f380f;
+}
+
+.notification-error {
+    border-color: #d32f2f;
+    background: #d32f2f;
+    color: #fff;
+}
+
+.notification-warning {
+    border-color: #ff9800;
+    background: #ff9800;
+    color: #0f380f;
+}
