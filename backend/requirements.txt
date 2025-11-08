@@ -1,0 +1,59 @@
+# GBStudio Automation Hub - Python Dependencies
+# Platform: Intel Mac (x86_64) - macOS Ventura 13.x
+# Python: 3.11
+#
+# Install: pip install -r requirements.txt
+# Note: faiss-cpu installed separately in Dockerfile
+
+# ============================================================================
+# Web Framework
+# ============================================================================
+fastapi==0.104.1          # Modern async web framework with automatic API docs
+uvicorn[standard]==0.24.0 # ASGI server with WebSocket support
+pydantic==2.5.0           # Data validation using Python type annotations
+pydantic-settings==2.1.0  # Settings management with environment variables
+
+# ============================================================================
+# HTTP Clients
+# ============================================================================
+requests==2.31.0          # Synchronous HTTP client (for Ollama, ComfyUI)
+aiohttp==3.9.1            # Async HTTP client (for batch operations)
+httpx==0.25.2             # Modern HTTP client with async support + testing
+
+# ============================================================================
+# Image Processing
+# ============================================================================
+Pillow==10.1.0            # Image manipulation (PNG reading, color conversion)
+numpy==1.26.2             # Array operations for image processing
+
+# ============================================================================
+# Machine Learning (Vector Operations)
+# ============================================================================
+scikit-learn==1.3.2       # KMeans clustering for palette extraction
+faiss-cpu==1.7.4          # FAISS vector database for knowledge base
+
+# ============================================================================
+# Security & Authentication
+# ============================================================================
+python-jose[cryptography]==3.3.0  # JWT token handling (API key auth)
+passlib[bcrypt]==1.7.4    # Password hashing (future auth features)
+
+# ============================================================================
+# Monitoring & Observability
+# ============================================================================
+prometheus-client==0.19.0 # Prometheus metrics endpoint
+psutil==5.9.8             # System resource monitoring (CPU/memory/disk)
+structlog==23.2.0         # Structured logging with JSON output
+
+# ============================================================================
+# Development & Utilities
+# ============================================================================
+python-multipart==0.0.6   # Form data parsing (for file uploads)
+python-dotenv==1.0.0      # .env file support for local development
+
+# ============================================================================
+# Testing (optional, for development)
+# ============================================================================
+pytest==7.4.3             # Testing framework
+pytest-asyncio==0.21.1    # Async test support
+pytest-cov==4.1.0         # Code coverage reports
