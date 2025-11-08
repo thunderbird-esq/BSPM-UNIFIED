@@ -1,0 +1,79 @@
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# API keys and secrets
+**/secrets/
+**/*_keys.txt
+**/api_keys.txt
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Temp/test outputs
+temp_outputs/
+outputs/
+test_outputs/
+
+# FAISS vectorstore
+vectorstore/
+*.faiss
+*.index
+
+# Agent memory
+agent_memory/
+
+# Node modules (if any)
+node_modules/
+
+# Build outputs
+*.wasm
+*.o
+*.a

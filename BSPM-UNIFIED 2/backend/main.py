@@ -432,7 +432,7 @@ def fallback_pm_response(model: str, prompt: str, correlation_id: str, timeout: 
 @retry_with_backoff(
     max_attempts=3,
     base_delay=1.0,
-    exceptions=(requests.exceptions.RequestException,)
+    exceptions=(aiohttp.ClientError,)
 )
 async def call_ollama_agent(
     model: str,
@@ -442,35 +442,37 @@ async def call_ollama_agent(
 ) -> Dict[str, Any]:
     """Call Ollama API for LLM inference with retry and circuit breaker"""
     try:
-        response = requests.post(
-            settings.ollama_api_url,
-            json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "top_k": 40
-                }
-            },
-            timeout=timeout
-        )
-        response.raise_for_status()
-        
-        result = response.json()
+        async with aiohttp.ClientSession() as session:
+            timeout_obj = aiohttp.ClientTimeout(total=timeout)
+            async with session.post(
+                settings.ollama_api_url,
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.7,
+                        "top_p": 0.9,
+                        "top_k": 40
+                    }
+                },
+                timeout=timeout_obj
+            ) as response:
+                response.raise_for_status()
+                result = await response.json()
+
         response_text = result.get("response", "")
-        
+
         try:
             if "```json" in response_text:
                 response_text = response_text.split("```json")[1].split("```")[0].strip()
             elif "```" in response_text:
                 response_text = response_text.split("```")[1].split("```")[0].strip()
-            
+
             parsed = json.loads(response_text)
             logger.info("Ollama response parsed successfully", extra={"correlation_id": correlation_id})
             return parsed
-            
+
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse Ollama JSON response: {e}", extra={"correlation_id": correlation_id})
             return {
@@ -478,12 +480,12 @@ async def call_ollama_agent(
                 "needs_approval": False,
                 "delegation_plan": []
             }
-    
-    except requests.exceptions.Timeout:
+
+    except asyncio.TimeoutError:
         logger.error(f"Ollama request timed out after {timeout}s", extra={"correlation_id": correlation_id})
         raise HTTPException(status_code=504, detail=f"LLM request timed out after {timeout} seconds")
-    
-    except requests.exceptions.RequestException as e:
+
+    except aiohttp.ClientError as e:
         logger.error(f"Ollama request failed: {e}", extra={"correlation_id": correlation_id})
         raise
 
@@ -566,33 +568,36 @@ async def health_check():
     # Check Ollama
     try:
         start = time.time()
-        response = requests.get(settings.ollama_tags_url, timeout=3)
-        latency = round((time.time() - start) * 1000, 2)
-        
-        if response.status_code == 200:
-            models = response.json().get("models", [])
-            model_names = [m["name"] for m in models]
-            
-            health_status["services"]["ollama"] = {
-                "status": "healthy",
-                "latency_ms": latency,
-                "models_loaded": model_names,
-                "required_models": [settings.pm_model, settings.embedding_model],
-                "models_ok": all(m in model_names for m in [settings.pm_model, settings.embedding_model])
-            }
-            
-            # Update metrics
-            metrics.update_service_health('ollama', healthy=True, latency_ms=latency)
-        else:
-            health_status["services"]["ollama"] = {
-                "status": "degraded",
-                "latency_ms": latency,
-                "error": f"HTTP {response.status_code}"
-            }
-            health_status["backend"] = "degraded"
-            metrics.update_service_health('ollama', healthy=False)
-    
-    except requests.exceptions.RequestException as e:
+        async with aiohttp.ClientSession() as session:
+            timeout_obj = aiohttp.ClientTimeout(total=3)
+            async with session.get(settings.ollama_tags_url, timeout=timeout_obj) as response:
+                latency = round((time.time() - start) * 1000, 2)
+
+                if response.status == 200:
+                    data = await response.json()
+                    models = data.get("models", [])
+                    model_names = [m["name"] for m in models]
+
+                    health_status["services"]["ollama"] = {
+                        "status": "healthy",
+                        "latency_ms": latency,
+                        "models_loaded": model_names,
+                        "required_models": [settings.pm_model, settings.embedding_model],
+                        "models_ok": all(m in model_names for m in [settings.pm_model, settings.embedding_model])
+                    }
+
+                    # Update metrics
+                    metrics.update_service_health('ollama', healthy=True, latency_ms=latency)
+                else:
+                    health_status["services"]["ollama"] = {
+                        "status": "degraded",
+                        "latency_ms": latency,
+                        "error": f"HTTP {response.status}"
+                    }
+                    health_status["backend"] = "degraded"
+                    metrics.update_service_health('ollama', healthy=False)
+
+    except (aiohttp.ClientError, asyncio.TimeoutError) as e:
         health_status["services"]["ollama"] = {
             "status": "unhealthy",
             "error": str(e)
@@ -603,28 +608,30 @@ async def health_check():
     # Check ComfyUI
     try:
         start = time.time()
-        response = requests.get(f"{settings.comfyui_api_url}/system_stats", timeout=3)
-        latency = round((time.time() - start) * 1000, 2)
-        
-        if response.status_code == 200:
-            stats = response.json()
-            health_status["services"]["comfyui"] = {
-                "status": "healthy",
-                "latency_ms": latency,
-                "device": stats.get("devices", [{}])[0].get("type", "unknown"),
-                "queue_remaining": 0
-            }
-            metrics.update_service_health('comfyui', healthy=True, latency_ms=latency)
-        else:
-            health_status["services"]["comfyui"] = {
-                "status": "degraded",
-                "latency_ms": latency,
-                "error": f"HTTP {response.status_code}"
-            }
-            health_status["backend"] = "degraded"
-            metrics.update_service_health('comfyui', healthy=False)
-    
-    except requests.exceptions.RequestException as e:
+        async with aiohttp.ClientSession() as session:
+            timeout_obj = aiohttp.ClientTimeout(total=3)
+            async with session.get(f"{settings.comfyui_api_url}/system_stats", timeout=timeout_obj) as response:
+                latency = round((time.time() - start) * 1000, 2)
+
+                if response.status == 200:
+                    stats = await response.json()
+                    health_status["services"]["comfyui"] = {
+                        "status": "healthy",
+                        "latency_ms": latency,
+                        "device": stats.get("devices", [{}])[0].get("type", "unknown"),
+                        "queue_remaining": 0
+                    }
+                    metrics.update_service_health('comfyui', healthy=True, latency_ms=latency)
+                else:
+                    health_status["services"]["comfyui"] = {
+                        "status": "degraded",
+                        "latency_ms": latency,
+                        "error": f"HTTP {response.status}"
+                    }
+                    health_status["backend"] = "degraded"
+                    metrics.update_service_health('comfyui', healthy=False)
+
+    except (aiohttp.ClientError, asyncio.TimeoutError) as e:
         health_status["services"]["comfyui"] = {
             "status": "unhealthy",
             "error": str(e)
@@ -747,44 +754,107 @@ async def handle_prompt(request: PromptRequest, _rate_limit = Depends(check_rate
 async def handle_execution(request: ExecutionRequest, _rate_limit = Depends(check_rate_limit)):
     """Execute approved delegation plan with regeneration tracking"""
     correlation_id = generate_correlation_id()
-    
+
     req_logger = LoggerAdapter(logger, {
         'correlation_id': correlation_id,
         'session_id': request.session_id
     })
-    
+
     req_logger.info(f"Executing plan: {len(request.plan)} tasks")
-    
+
     # Create regeneration session for tracking
     session = regeneration_manager.create_session(
         session_id=request.session_id,
         original_prompt=request.plan[0].task if request.plan else '',
         base_plan={'plan': [task.dict() for task in request.plan]}
     )
-    
+
     results = []
-    
+    task_ids = []
+
+    # Process each task in the plan
     for task in request.plan:
         if task.department == "Art":
-            results.append({
-                "department": "Art",
-                "task": task.task,
-                "status": "queued",
-                "message": "Art generation not yet implemented in this minimal version"
-            })
+            try:
+                # Extract parameters from task details or use defaults
+                details = task.details or {}
+                positive_prompt = task.task  # The task description is the prompt
+                negative_prompt = details.get('negative_prompt', 'blurry, low quality, bad anatomy')
+                preset_name = details.get('preset', 'clean_pixel_art')
+                seed = details.get('seed')
+
+                # Get style preset
+                try:
+                    preset = get_preset_by_name(preset_name)
+                    # Build enhanced prompts with preset boost
+                    enhanced_positive = f"{positive_prompt}, {preset.positive_boost}"
+                    enhanced_negative = f"{negative_prompt}, {preset.negative_boost}"
+                except ValueError:
+                    # Fall back to defaults if preset not found
+                    req_logger.warning(f"Preset '{preset_name}' not found, using clean_pixel_art")
+                    preset = get_preset_by_name('clean_pixel_art')
+                    enhanced_positive = f"{positive_prompt}, {preset.positive_boost}"
+                    enhanced_negative = f"{negative_prompt}, {preset.negative_boost}"
+
+                # Create generation function for task queue
+                async def generate_sprite():
+                    from comfyui.executor import execute_spritesheet_generation
+                    result = await execute_spritesheet_generation(
+                        positive_prompt=enhanced_positive,
+                        negative_prompt=enhanced_negative,
+                        comfyui_url=settings.comfyui_api_url,
+                        seed=seed
+                    )
+                    return result
+
+                # Submit to task queue
+                task_id = await task_queue.submit(
+                    func=generate_sprite,
+                    session_id=request.session_id,
+                    plan={'task': task.task, 'details': details},
+                    priority=Priority.NORMAL
+                )
+
+                task_ids.append(task_id)
+
+                results.append({
+                    "department": "Art",
+                    "task": task.task,
+                    "status": "queued",
+                    "task_id": task_id,
+                    "message": "Sprite generation queued successfully"
+                })
+
+                req_logger.info(f"Art task queued: {task_id}")
+
+            except Exception as e:
+                req_logger.error(f"Failed to queue Art task: {e}", exc_info=True)
+                results.append({
+                    "department": "Art",
+                    "task": task.task,
+                    "status": "failed",
+                    "error": str(e),
+                    "message": f"Failed to queue generation: {str(e)}"
+                })
         else:
+            # Other departments not yet implemented
             results.append({
                 "department": task.department,
                 "task": task.task,
                 "status": "unsupported",
                 "message": f"Department {task.department} not yet implemented"
             })
-    
+
+    # Return first task_id as prompt_id for frontend compatibility
+    prompt_id = task_ids[0] if task_ids else None
+
     return {
-        "status": "completed",
+        "status": "queued" if task_ids else "completed",
         "results": results,
         "session_id": request.session_id,
-        "correlation_id": correlation_id
+        "correlation_id": correlation_id,
+        "prompt_id": prompt_id,  # For frontend WebSocket tracking
+        "task_ids": task_ids  # All task IDs for multi-task plans
     }
 
 
