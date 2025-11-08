@@ -55,7 +55,9 @@ RUN useradd -m -u 1000 gbstudio && \
     chown -R gbstudio:gbstudio /app
 
 # Copy application code with correct ownership
-COPY --chown=gbstudio:gbstudio . .
+# Create backend directory structure to match imports
+RUN mkdir -p /app/backend
+COPY --chown=gbstudio:gbstudio . /app/backend/
 
 # Create required directories for runtime
 RUN mkdir -p /app/temp_outputs /app/vectorstore /app/agent_memory && \
@@ -89,4 +91,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
 # Run application with uvicorn
 # --host 0.0.0.0: Listen on all interfaces (required for Docker networking)
 # --port 8000: Standard HTTP port
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
