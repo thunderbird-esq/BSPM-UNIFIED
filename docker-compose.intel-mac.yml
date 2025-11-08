@@ -1,0 +1,128 @@
+# GBStudio Automation Hub - Docker Compose Configuration
+# Platform: Intel Mac (x86_64) - macOS Ventura 13.x
+# Docker Desktop: 4.25+
+# Version: 3.3 - Using local Ollama instance
+#
+# Usage:
+#   Start: docker compose -f docker-compose.intel-mac.yml up -d
+#   Stop:  docker compose -f docker-compose.intel-mac.yml down
+#   Logs:  docker compose -f docker-compose.intel-mac.yml logs -f
+
+services:
+  # ============================================================================
+  # Backend - FastAPI application with PM agent
+  # ============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.intel-mac
+    container_name: gbstudio_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./project_files:/app/project_files:rw
+      - ./vectorstore:/app/vectorstore:rw
+      - ./agent_memory:/app/agent_memory:rw
+      - ./temp_outputs:/app/temp_outputs:rw
+      - ./app/logs:/app/logs:rw
+      - ./app/secrets:/app/secrets:ro
+      - ./frontend:/app/frontend:ro
+    environment:
+      # Connect to local Ollama running on host machine
+      - GBSTUDIO_OLLAMA_API_URL=http://host.docker.internal:11434/api/generate
+      - GBSTUDIO_OLLAMA_EMBEDDINGS_URL=http://host.docker.internal:11434/api/embeddings
+      - GBSTUDIO_OLLAMA_TAGS_URL=http://host.docker.internal:11434/api/tags
+      - GBSTUDIO_COMFYUI_API_URL=http://comfyui:8188
+      
+      # Models
+      - GBSTUDIO_PM_MODEL=llama3
+      - GBSTUDIO_EMBEDDING_MODEL=nomic-embed-text
+      
+      # Timeouts
+      - GBSTUDIO_DEFAULT_TIMEOUT=90
+      - GBSTUDIO_GENERATION_TIMEOUT=360
+      
+      # Environment
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      comfyui:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    networks:
+      - gbstudio_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ============================================================================
+  # ComfyUI - Stable Diffusion image generation
+  # ============================================================================
+  comfyui:
+    build:
+      context: ./backend/comfyui
+      dockerfile: Dockerfile.intel-mac
+    container_name: gbstudio_comfyui
+    ports:
+      - "8188:8188"
+    volumes:
+      - ./comfyui_models:/app/ComfyUI/models:rw
+      - comfyui_output:/app/ComfyUI/output:rw
+      - comfyui_custom_nodes:/app/ComfyUI/custom_nodes:rw
+    environment:
+      - COMFYUI_DEVICE=cpu
+      - PYTORCH_ENABLE_MPS_FALLBACK=0
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 8G
+        reservations:
+          cpus: '1.0'
+          memory: 4G
+    networks:
+      - gbstudio_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8188/system_stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+# ============================================================================
+# Named Volumes
+# ============================================================================
+volumes:
+  comfyui_output:
+    driver: local
+    name: gbstudio_comfyui_output
+  
+  comfyui_custom_nodes:
+    driver: local
+    name: gbstudio_comfyui_custom_nodes
+
+# ============================================================================
+# Network Configuration
+# ============================================================================
+networks:
+  gbstudio_network:
+    name: gbstudio_network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1
