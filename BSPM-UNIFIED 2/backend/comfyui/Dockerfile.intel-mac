@@ -6,8 +6,8 @@
 
 FROM python:3.11-slim-bullseye AS builder
 
-# Architecture check - fail fast if not x86_64
-RUN [ "$(uname -m)" = "x86_64" ] || (echo "ERROR: This image requires x86_64 architecture" && exit 1)
+# Note: This image is designed for x86_64 but can be built on Apple Silicon
+# using Docker Desktop with Rosetta 2 emulation (--platform linux/amd64)
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

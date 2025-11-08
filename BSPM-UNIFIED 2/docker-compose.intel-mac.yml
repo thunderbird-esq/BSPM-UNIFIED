@@ -15,6 +15,7 @@ services:
   # Backend - FastAPI application with PM agent
   # ============================================================================
   backend:
+    platform: linux/amd64
     build:
       context: ./backend
       dockerfile: Dockerfile.intel-mac
@@ -72,6 +73,7 @@ services:
   # ComfyUI - Stable Diffusion image generation
   # ============================================================================
   comfyui:
+    platform: linux/amd64
     build:
       context: ./backend/comfyui
       dockerfile: Dockerfile.intel-mac
