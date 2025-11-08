@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBStudio Automation Hub</title>
+    
+    <!-- Base styles -->
+    <link rel="stylesheet" href="/frontend/styles/css-pokemon-gameboy.css">
+    <link rel="stylesheet" href="/frontend/styles/command-deck.css">
+    <link rel="stylesheet" href="/frontend/styles/chat.css">
+    <link rel="stylesheet" href="/frontend/styles/medium-priority.css">
+    <link rel="stylesheet" href="/frontend/styles/integration.css">
+    
+    
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Barry Modal (on load) -->
+    <div id="barry-modal" class="modal-backdrop" style="display: flex;">
+        <div class="modal-content barry-modal">
+            <div class="barry-head"></div>
+            <h2>GBStudio Automation Hub</h2>
+            <p>AI-powered sprite generation for Game Boy Color</p>
+            <button id="barry-start" class="btn-primary">START</button>
+        </div>
+    </div>
+    
+    <!-- Main Container -->
+    <div class="gb-container" style="display: none;" id="main-container">
+        
+        <!-- Header -->
+        <header class="gb-header">
+            <h1>🎮 GBStudio Automation Hub</h1>
+            <div class="header-actions">
+                <button id="toggle-monitor" class="btn-icon">📊</button>
+                <button id="toggle-sprite-manager" class="btn-icon">🖼️</button>
+                <button id="toggle-batch-ops" class="btn-icon">📦</button>
+                <button id="toggle-kb-admin" class="btn-icon">📚</button>
+            </div>
+        </header>
+        
+        <!-- Service Monitor (top-right, collapsible) -->
+        <div id="service-monitor" class="service-monitor"></div>
+        
+        <!-- Main Content Area -->
+        <div class="main-content">
+            
+            <!-- Left Panel: Chat Interface -->
+            <div class="chat-panel">
+                <div id="chat-window" class="chat-window"></div>
+                
+                <!-- Input Area with Style Preset Selector -->
+                <div class="input-area">
+                    <div id="style-preset-selector"></div>
+                    
+                    <div class="chat-input-container">
+                        <textarea id="chat-input" 
+                                  placeholder="Type your request (e.g., 'Create a knight sprite')..."
+                                  rows="3"></textarea>
+                        <button id="send-btn" class="btn-send">SEND</button>
+                    </div>
+                </div>
+                
+                <!-- Regeneration Controls (shown after generation) -->
+                <div id="regeneration-controls" style="display: none;"></div>
+            </div>
+            
+            <!-- Right Panel: Multi-purpose (Sprite Manager / Batch Ops / KB Admin) -->
+            <div class="side-panel">
+                <div id="sprite-manager-panel" class="panel-content" style="display: none;"></div>
+                <div id="batch-ops-panel" class="panel-content" style="display: none;"></div>
+                <div id="kb-admin-panel" class="panel-content" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <!-- Status Bar -->
+        <footer class="status-bar">
+            <span id="status-text">Ready</span>
+            <span id="queue-status">Queue: 0 pending</span>
+        </footer>
+    </div>
+    
+    <!-- Scripts (ES6 modules) -->
+    <script type="module" src="/frontend/src/main.js"></script>
+</body>
+</html>
