@@ -290,9 +290,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
-# Mount static files
+# Mount static files (frontend)
 frontend_path = Path("/app/frontend")
 if frontend_path.exists():
+    # Mount at /frontend for index.html asset paths
+    app.mount("/frontend", StaticFiles(directory=str(frontend_path)), name="frontend")
+    # Also mount at /static for backward compatibility
     app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
 
 
