@@ -169,7 +169,14 @@ class MetricsCollector:
             requires_approval=str(requires_approval).lower()
         ).inc()
         pm_agent_response_duration_seconds.observe(duration_seconds)
-    
+
+    def record_art_generation(self, success: bool, duration_seconds: float):
+        """Record art generation metrics."""
+        status = 'success' if success else 'failed'
+        sprite_generation_requests.labels(status=status).inc()
+        if duration_seconds > 0:
+            sprite_generation_duration_seconds.observe(duration_seconds)
+
     def record_knowledge_base_search(self):
         """Record knowledge base search."""
         knowledge_base_searches.inc()

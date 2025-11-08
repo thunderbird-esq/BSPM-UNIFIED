@@ -287,19 +287,22 @@ rate_limiter = RateLimiter(max_requests=10, time_window=60.0)
 async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
     """
     FastAPI dependency for API key authentication.
-    
+
     Usage:
         @app.post("/api/v1/execute", dependencies=[Depends(verify_api_key)])
         async def execute_plan(plan: dict):
             # This endpoint requires valid API key
             pass
+
+    Security Fix #4: Rejects empty, None, or invalid API keys
     """
-    if not x_api_key:
+    # Reject empty or None API keys
+    if not x_api_key or not x_api_key.strip():
         raise HTTPException(
             status_code=401,
             detail="API key required. Provide X-API-Key header."
         )
-    
+
     if not api_key_manager.validate_key(x_api_key):
         logger.warning(
             "Invalid API key attempt",
@@ -309,8 +312,22 @@ async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
             status_code=403,
             detail="Invalid API key"
         )
-    
+
     return x_api_key
+
+
+# Alias for convenience
+async def get_api_key(x_api_key: Optional[str] = Header(None)) -> str:
+    """
+    Alias for verify_api_key.
+
+    Usage:
+        @app.post("/api/v1/execute")
+        async def execute_plan(plan: dict, api_key: str = Depends(get_api_key)):
+            # This endpoint requires valid API key
+            pass
+    """
+    return await verify_api_key(x_api_key)
 
 
 async def check_rate_limit(request: Request, session_id: Optional[str] = None):

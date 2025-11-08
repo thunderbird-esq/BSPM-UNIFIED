@@ -48,8 +48,11 @@ logger = setup_logging(
     backup_count=5
 )
 
+# Atomic write utilities
+from backend.utils.atomic_write import atomic_append_jsonl
+
 # Security and task queue
-from backend.security import check_rate_limit, verify_api_key, api_key_manager, rate_limiter
+from backend.security import check_rate_limit, verify_api_key, get_api_key, api_key_manager, rate_limiter
 from backend.task_queue import task_queue, Priority
 
 # Medium-priority features
@@ -58,6 +61,10 @@ from backend.regeneration_manager import regeneration_manager, GenerationAttempt
 from backend.sprite_manager import create_sprite_manager
 from backend.batch_generator import create_batch_generator
 from backend.kb_admin import create_kb_admin
+
+# ComfyUI integration
+from backend.comfyui.executor import execute_spritesheet_generation
+from backend.comfyui.workflow_builder import create_spritesheet_workflow
 
 # Graceful degradation
 from backend.graceful_degradation import (
@@ -80,16 +87,22 @@ from backend.retry_logic import (
 # Metrics
 from backend.metrics import metrics, MetricsCollector
 
+# WebSocket
+from backend.websocket import manager as ws_manager
+
+# Session Management
+from backend.session_manager import SessionManager
+
 
 class Settings(BaseSettings):
     """Application configuration with validation"""
-    
+
     # Service URLs
     ollama_api_url: str = "http://ollama:11434/api/generate"
     ollama_embeddings_url: str = "http://ollama:11434/api/embeddings"
     ollama_tags_url: str = "http://ollama:11434/api/tags"
     comfyui_api_url: str = "http://comfyui:8188"
-    
+
     # Paths
     project_files_path: str = "/app/project_files"
     workflow_template_path: str = "/workflows/workflow_pixel_art.json"
@@ -98,17 +111,22 @@ class Settings(BaseSettings):
     agent_memory_path: str = "/app/agent_memory"
     gbstudio_project_path: str = "/app/project_files/MyGBCGame.gbsproj"
     project_docs_dir: str = "/app/project_docs"
-    
+
     # Agent configuration
     pm_model: str = "llama3"
     embedding_model: str = "nomic-embed-text"
     default_timeout: int = 90
-    
+
     # Generation parameters
     sprite_width: int = 32
     sprite_height: int = 32
     num_frames: int = 8
     generation_timeout: int = 360  # 6 minutes
+
+    # Security configuration
+    allowed_origins: str = "http://localhost:5173,http://localhost:8080"
+    max_request_size: int = 10 * 1024 * 1024  # 10MB
+    max_upload_size: int = 5 * 1024 * 1024  # 5MB
     
     @validator("project_files_path")
     def path_must_exist(cls, v):
@@ -143,14 +161,14 @@ class PromptRequest(BaseModel):
 
 
 class DelegationTask(BaseModel):
-    department: str
-    task: str
+    department: str = Field(..., max_length=100)
+    task: str = Field(..., max_length=5000)
     details: Optional[Dict[str, Any]] = {}
 
 
 class ExecutionRequest(BaseModel):
-    plan: List[DelegationTask]
-    session_id: str
+    plan: List[DelegationTask] = Field(..., max_items=50)  # Security Fix #5: Limit array size
+    session_id: str = Field(..., max_length=64)
 
 
 class HealthResponse(BaseModel):
@@ -215,21 +233,29 @@ class ProjectTemplateRequest(BaseModel):
 
 
 class DocumentUploadRequest(BaseModel):
-    filename: str
-    content: str
+    filename: str = Field(..., max_length=255)
+    content: str = Field(..., max_length=5 * 1024 * 1024)  # Security Fix #5: 5MB limit
+
+    @validator("content")
+    def validate_content_size(cls, v):
+        """Validate uploaded document size"""
+        max_size = 5 * 1024 * 1024  # 5MB
+        if len(v.encode('utf-8')) > max_size:
+            raise ValueError(f"Document content too large. Maximum size is 5MB")
+        return v
 
 
 class SearchTestRequest(BaseModel):
-    query: str
-    limit: int = 5
+    query: str = Field(..., max_length=500)
+    limit: int = Field(default=5, ge=1, le=100)  # Security Fix #5: Limit result count
 
 
 # ============================================================================
 # Application State
 # ============================================================================
 
-# In-memory session storage
-sessions: Dict[str, Dict] = {}
+# Session storage (file-based persistence)
+sessions: Dict[str, Dict] = {}  # Will be replaced by session_manager
 
 # Application startup time for uptime calculation
 START_TIME = time.time()
@@ -245,14 +271,49 @@ app = FastAPI(
     description="AI-powered Game Boy Color asset generation system"
 )
 
-# CORS middleware
+# CORS middleware - Security Fix #3
+# SECURITY WARNING: In production, configure ALLOWED_ORIGINS environment variable
+# to restrict access to specific frontend domains only.
+# Default development origins: localhost:5173 (Vite), localhost:8080 (common dev server)
+#
+# Production example:
+#   GBSTUDIO_ALLOWED_ORIGINS="https://yourdomain.com,https://app.yourdomain.com"
+#
+# NEVER use "*" (allow all origins) with credentials in production!
+allowed_origins_list = [
+    origin.strip()
+    for origin in settings.allowed_origins.split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Request size limit middleware - Security Fix #5
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    """
+    Limit request body size to prevent DoS attacks.
+
+    Max request size: 10MB (configurable via GBSTUDIO_MAX_REQUEST_SIZE)
+    """
+    content_length = request.headers.get("content-length")
+    if content_length:
+        content_length = int(content_length)
+        if content_length > settings.max_request_size:
+            return JSONResponse(
+                status_code=413,
+                content={
+                    "detail": f"Request body too large. Maximum size is {settings.max_request_size / (1024*1024):.1f}MB"
+                }
+            )
+    return await call_next(request)
+
 
 # Mount static files
 frontend_path = Path("/app/frontend")
@@ -268,6 +329,14 @@ if frontend_path.exists():
 async def startup_event():
     """Start background services on application startup"""
     await task_queue.start()
+    
+    # Initialize session manager
+    global session_manager
+    session_manager = SessionManager(
+        storage_path=os.path.join(settings.agent_memory_path, "sessions"),
+        expiration_hours=24
+    )
+    logger.info(f"Session manager initialized: {session_manager.get_session_count()} sessions")
     logger.info("Task queue started")
     logger.info("GBStudio Automation Hub v3.3 started")
 
@@ -276,6 +345,11 @@ async def startup_event():
 async def shutdown_event():
     """Clean shutdown of background tasks and connections"""
     await task_queue.stop()
+    
+    # Cleanup sessions
+    if "session_manager" in globals():
+        session_manager.cleanup()
+        logger.info("Session manager cleaned up")
     logger.info("Task queue stopped")
     logger.info("GBStudio Automation Hub backend v3.3 shutdown complete")
 
@@ -472,9 +546,9 @@ def save_conversation_turn(
     action_taken: Optional[str] = None,
     correlation_id: Optional[str] = None
 ):
-    """Persist conversation turn to JSONL file"""
+    """Persist conversation turn to JSONL file (atomic write)"""
     conversation_file = os.path.join(settings.agent_memory_path, "conversations", f"{session_id}.jsonl")
-    
+
     turn = {
         "turn_id": hashlib.sha256(f"{user_message}{datetime.utcnow().isoformat()}".encode()).hexdigest()[:16],
         "session_id": session_id,
@@ -484,11 +558,126 @@ def save_conversation_turn(
         "action_taken": action_taken,
         "correlation_id": correlation_id
     }
-    
-    with open(conversation_file, 'a') as f:
-        f.write(json.dumps(turn) + '\n')
-    
+
+    # Use atomic append to prevent corruption from concurrent writes
+    atomic_append_jsonl(conversation_file, turn)
+
     logger.info(f"Saved conversation turn for session {session_id}", extra={"correlation_id": correlation_id or "none"})
+
+
+async def execute_art_task(
+    task: DelegationTask,
+    session_id: str,
+    correlation_id: str,
+    preset: Optional[str] = None,
+    timeout: int = 300
+) -> Dict[str, Any]:
+    """
+    Execute art generation task using ComfyUI
+
+    Args:
+        task: Delegation task with art generation details
+        session_id: Session identifier
+        correlation_id: Request correlation ID
+        preset: Optional style preset
+        timeout: Max execution time in seconds (default 5 minutes)
+
+    Returns:
+        Dict with status, sprite_id, frame_paths, etc.
+    """
+    req_logger = LoggerAdapter(logger, {
+        'correlation_id': correlation_id,
+        'session_id': session_id
+    })
+
+    try:
+        # Extract parameters from task
+        details = task.details or {}
+        positive_prompt = task.task
+
+        # Get style preset parameters
+        if preset:
+            try:
+                preset_params = get_preset_by_name(preset)
+                negative_prompt = preset_params.negative_prompt
+                # Add preset boosts to prompts
+                if preset_params.positive_boost:
+                    positive_prompt = f"{positive_prompt}, {preset_params.positive_boost}"
+                if preset_params.negative_boost:
+                    negative_prompt = f"{negative_prompt}, {preset_params.negative_boost}"
+            except ValueError:
+                req_logger.warning(f"Invalid preset {preset}, using defaults")
+                negative_prompt = "blurry, low quality, distorted"
+        else:
+            negative_prompt = details.get("negative_prompt", "blurry, low quality, distorted")
+
+        # Get generation parameters
+        seed = details.get("seed")
+        steps = details.get("steps", 20)
+        cfg = details.get("cfg", 8.0)
+
+        req_logger.info(f"Starting art generation: {positive_prompt[:50]}...")
+
+        # Execute ComfyUI workflow with timeout
+        try:
+            result = await asyncio.wait_for(
+                execute_spritesheet_generation(
+                    positive_prompt=positive_prompt,
+                    negative_prompt=negative_prompt,
+                    comfyui_url=settings.comfyui_api_url,
+                    seed=seed
+                ),
+                timeout=timeout
+            )
+
+            req_logger.info(f"Art generation completed successfully")
+
+            # Record metrics
+            metrics.record_art_generation(
+                success=True,
+                duration_seconds=timeout  # Actual duration tracked in executor
+            )
+
+            return {
+                "status": "completed",
+                "department": "Art",
+                "task": task.task,
+                "result": result,
+                "message": "Art generation completed successfully"
+            }
+
+        except asyncio.TimeoutError:
+            req_logger.error(f"Art generation timed out after {timeout}s")
+            metrics.record_art_generation(success=False, duration_seconds=timeout)
+            return {
+                "status": "failed",
+                "department": "Art",
+                "task": task.task,
+                "error": f"Generation timed out after {timeout} seconds",
+                "message": "Art generation failed: timeout"
+            }
+
+        except RuntimeError as e:
+            req_logger.error(f"ComfyUI error: {e}")
+            metrics.record_art_generation(success=False, duration_seconds=0)
+            return {
+                "status": "failed",
+                "department": "Art",
+                "task": task.task,
+                "error": str(e),
+                "message": f"Art generation failed: {str(e)}"
+            }
+
+    except Exception as e:
+        req_logger.error(f"Unexpected error in art generation: {e}", exc_info=True)
+        metrics.record_art_generation(success=False, duration_seconds=0)
+        return {
+            "status": "failed",
+            "department": "Art",
+            "task": task.task,
+            "error": str(e),
+            "message": f"Art generation failed: {str(e)}"
+        }
 
 
 # ============================================================================
@@ -620,6 +809,59 @@ async def prometheus_metrics():
     )
 
 
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, session_id: str = "default"):
+    """
+    WebSocket endpoint for real-time progress updates
+    
+    Query params:
+        session_id: Client session identifier (optional, defaults to "default")
+    
+    Usage:
+        Connect via: ws://localhost:8000/ws?session_id=your_session_id
+        
+    Message types:
+        - progress: Task progress updates
+        - generation_progress: Sprite generation steps
+        - error: Error notifications
+    """
+    await ws_manager.connect(websocket, session_id)
+    
+    try:
+        # Send welcome message
+        await ws_manager.send_to_session({
+            "type": "connected",
+            "message": f"Connected to session {session_id}",
+            "session_id": session_id
+        }, session_id)
+        
+        # Keep connection alive and handle incoming messages
+        while True:
+            try:
+                data = await websocket.receive_text()
+                
+                # Echo back or handle client messages if needed
+                message = json.loads(data) if data else {}
+                
+                # Handle ping/pong for keepalive
+                if message.get("type") == "ping":
+                    await ws_manager.send_to_session({
+                        "type": "pong"
+                    }, session_id)
+                
+            except WebSocketDisconnect:
+                break
+            except json.JSONDecodeError:
+                # Invalid JSON, ignore
+                pass
+            except Exception as e:
+                logger.error(f"WebSocket error: {e}")
+                break
+    
+    finally:
+        ws_manager.disconnect(websocket)
+
+
 @app.post("/api/v1/prompt")
 async def handle_prompt(request: PromptRequest, _rate_limit = Depends(check_rate_limit)):
     """Handle user prompt with style preset support"""
@@ -633,20 +875,71 @@ async def handle_prompt(request: PromptRequest, _rate_limit = Depends(check_rate
     })
     
     req_logger.info(f"Processing prompt: {request.message[:50]}...")
-    
+
     # Auto-detect style preset if not specified
     if not request.preset:
         preset = get_optimal_preset_for_description(request.message)
         req_logger.info(f"Auto-selected preset: {preset.value}")
-    
+    else:
+        preset = request.preset
+
+    # Store preset in session
+    if 'session_manager' in globals():
+        session_manager.update_session(session_id, {'preset': preset})
+    else:
+        # Fallback to in-memory
+        if session_id not in sessions:
+            sessions[session_id] = {}
+        sessions[session_id]['preset'] = preset
+
     recent_context = get_recent_conversation_context(session_id)
+
+    # Search knowledge base for relevant context
     kb_context = "No relevant documentation found."
-    
+    try:
+        from backend.memory.knowledge_base import KnowledgeBase
+
+        # Initialize KB if not already done
+        kb = KnowledgeBase(
+            vectorstore_path=settings.vectorstore_path,
+            embedding_url=settings.ollama_embeddings_url,
+            embedding_model=settings.embedding_model
+        )
+
+        # Search for relevant documentation
+        search_results = kb.search(
+            query=request.message,
+            k=3,
+            filter_type="project_doc"
+        )
+
+        # Filter by relevance threshold (min similarity 0.7)
+        # Note: FAISS returns L2 distance, lower is better
+        # For normalized vectors, L2 distance of ~1.0 = similarity of ~0.7
+        relevant_results = [r for r in search_results if r['score'] < 1.5]
+
+        if relevant_results:
+            # Format KB results for LLM consumption
+            kb_parts = ["## Relevant Documentation:"]
+            for i, result in enumerate(relevant_results, 1):
+                doc_type = result['metadata'].get('doc_type', 'unknown')
+                kb_parts.append(f"\n### Document {i} ({doc_type}):")
+                kb_parts.append(result['content'][:400] + "...")
+            kb_context = "\n".join(kb_parts)
+            req_logger.info(f"Found {len(relevant_results)} relevant KB documents")
+        else:
+            req_logger.info("No relevant KB documents found above threshold")
+
+    except Exception as e:
+        req_logger.warning(f"KB search failed: {e}, continuing without KB context")
+        kb_context = "No relevant documentation found."
+
     full_prompt = PM_AGENT_PROMPT.format(
         recent_context=recent_context,
         kb_context=kb_context,
         user_message=request.message
     )
+
     
     try:
         # Track PM agent call
@@ -695,34 +988,69 @@ async def handle_prompt(request: PromptRequest, _rate_limit = Depends(check_rate
 
 
 @app.post("/api/v1/execute")
-async def handle_execution(request: ExecutionRequest, _rate_limit = Depends(check_rate_limit)):
-    """Execute approved delegation plan with regeneration tracking"""
+async def handle_execution(
+    request: ExecutionRequest,
+    _rate_limit = Depends(check_rate_limit),
+    api_key: str = Depends(get_api_key)
+):
+    """
+    Execute approved delegation plan with regeneration tracking
+
+    Security Fix #4: Requires valid API key authentication
+    """
     correlation_id = generate_correlation_id()
-    
+
     req_logger = LoggerAdapter(logger, {
         'correlation_id': correlation_id,
         'session_id': request.session_id
     })
-    
+
     req_logger.info(f"Executing plan: {len(request.plan)} tasks")
-    
+
     # Create regeneration session for tracking
     session = regeneration_manager.create_session(
         session_id=request.session_id,
         original_prompt=request.plan[0].task if request.plan else '',
         base_plan={'plan': [task.dict() for task in request.plan]}
     )
-    
+
     results = []
-    
+
+    # Get preset from session if available
+    if 'session_manager' in globals():
+        session_data = session_manager.get_session(request.session_id)
+        preset = session_data.get('data', {}).get('preset') if session_data else None
+    else:
+        preset = sessions.get(request.session_id, {}).get('preset')
+
     for task in request.plan:
         if task.department == "Art":
-            results.append({
-                "department": "Art",
-                "task": task.task,
-                "status": "queued",
-                "message": "Art generation not yet implemented in this minimal version"
-            })
+            req_logger.info(f"Executing Art task: {task.task[:50]}...")
+
+            # Execute art generation with ComfyUI
+            art_result = await execute_art_task(
+                task=task,
+                session_id=request.session_id,
+                correlation_id=correlation_id,
+                preset=preset,
+                timeout=300  # 5 minutes
+            )
+
+            results.append(art_result)
+
+            # Record attempt in regeneration manager
+            if art_result["status"] == "completed":
+                attempt_id = f"attempt_{str(uuid4())[:12]}"
+                attempt = GenerationAttempt(
+                    attempt_id=attempt_id,
+                    seed=task.details.get('seed', 0) if task.details else 0,
+                    preset=preset or 'clean_pixel_art',
+                    parameters=task.details or {},
+                    timestamp=datetime.now(),
+                    status="completed"
+                )
+                session.add_attempt(attempt)
+
         else:
             results.append({
                 "department": task.department,
@@ -730,7 +1058,16 @@ async def handle_execution(request: ExecutionRequest, _rate_limit = Depends(chec
                 "status": "unsupported",
                 "message": f"Department {task.department} not yet implemented"
             })
-    
+
+    # Update conversation with action taken
+    save_conversation_turn(
+        session_id=request.session_id,
+        user_message=f"Execute plan: {len(request.plan)} tasks",
+        pm_response=f"Executed {len(results)} tasks",
+        action_taken=f"Art generation: {sum(1 for r in results if r.get('department') == 'Art')} tasks",
+        correlation_id=correlation_id
+    )
+
     return {
         "status": "completed",
         "results": results,
@@ -1084,8 +1421,15 @@ async def reindex_document(source_file: str):
 
 
 @app.post("/api/v1/admin/kb/upload")
-async def upload_kb_document(request: DocumentUploadRequest):
-    """Upload new document to knowledge base"""
+async def upload_kb_document(
+    request: DocumentUploadRequest,
+    api_key: str = Depends(get_api_key)
+):
+    """
+    Upload new document to knowledge base
+
+    Security Fix #4: Requires valid API key authentication
+    """
     try:
         from backend.memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)

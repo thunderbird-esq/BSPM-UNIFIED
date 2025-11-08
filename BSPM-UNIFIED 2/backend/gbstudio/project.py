@@ -14,11 +14,102 @@ Complete implementation for:
 import json
 import hashlib
 import time
+import shutil
 from typing import List, Dict, Optional
 from pathlib import Path
 
 from PIL import Image
 import numpy as np
+
+# Import atomic write utilities
+import sys
+sys.path.insert(0, '/home/user/BSPM-UNIFIED/BSPM-UNIFIED 2')
+from backend.utils.atomic_write import atomic_write_json
+
+
+class ProjectTransaction:
+    """
+    Transaction-like context manager for GBStudio project operations
+
+    Provides rollback capability for multi-step operations:
+    - Backs up current project state on enter
+    - Commits changes on successful exit
+    - Rolls back to backup on exception
+
+    Usage:
+        with ProjectTransaction(project) as txn:
+            project.add_sprite_sheet(...)
+            project.add_background(...)
+            # If any operation fails, entire transaction rolls back
+    """
+
+    def __init__(self, project: 'GBStudioProject'):
+        """
+        Initialize transaction
+
+        Args:
+            project: GBStudioProject instance to protect
+        """
+        self.project = project
+        self.backup_data = None
+        self.committed = False
+
+    def __enter__(self):
+        """
+        Enter transaction context: backup current state
+
+        Returns:
+            Self for use in with statement
+        """
+        # Deep copy current project data
+        import copy
+        self.backup_data = copy.deepcopy(self.project.project_data)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Exit transaction context: commit or rollback
+
+        Args:
+            exc_type: Exception type if raised, None otherwise
+            exc_val: Exception value if raised, None otherwise
+            exc_tb: Exception traceback if raised, None otherwise
+
+        Returns:
+            False to propagate exceptions
+        """
+        if exc_type is not None:
+            # Exception occurred, rollback
+            self.rollback()
+            print(f"[Transaction] Rolled back due to error: {exc_type.__name__}: {exc_val}")
+            return False  # Propagate exception
+        else:
+            # No exception, commit
+            self.commit()
+            return False
+
+    def commit(self):
+        """
+        Commit transaction: save current state to disk
+
+        Safe to call multiple times (idempotent).
+        """
+        if not self.committed:
+            self.project._save_project()
+            self.committed = True
+            print("[Transaction] Committed successfully")
+
+    def rollback(self):
+        """
+        Rollback transaction: restore from backup
+
+        Restores project_data to state at transaction start.
+        Does not save to disk (leaves file unchanged).
+        """
+        if self.backup_data is not None:
+            self.project.project_data = self.backup_data
+            self.backup_data = None
+            print("[Transaction] Rolled back to previous state")
 
 
 class GBStudioProject:
@@ -60,9 +151,8 @@ class GBStudioProject:
                 raise ValueError(f"Invalid project file: missing '{key}' field")
     
     def _save_project(self):
-        """Save project back to disk with pretty formatting"""
-        with open(self.project_path, 'w') as f:
-            json.dump(self.project_data, f, indent=2)
+        """Save project back to disk with pretty formatting (atomic write)"""
+        atomic_write_json(str(self.project_path), self.project_data, indent=2)
     
     def add_sprite_sheet(
         self,
@@ -394,13 +484,28 @@ class GBStudioProject:
             for sheet in self.project_data.get("spriteSheets", [])
         ]
     
+    def transaction(self) -> ProjectTransaction:
+        """
+        Create a transaction context for multi-step operations
+
+        Returns:
+            ProjectTransaction context manager
+
+        Example:
+            with project.transaction():
+                project.add_sprite_sheet(frames1, "Sprite1")
+                project.add_sprite_sheet(frames2, "Sprite2")
+                # Both operations commit together or rollback on error
+        """
+        return ProjectTransaction(self)
+
     def validate_sprite_sheet(self, sprite_id: str) -> Dict:
         """
         Validate that a sprite sheet exists and is properly formatted
-        
+
         Args:
             sprite_id: Sprite sheet ID to validate
-        
+
         Returns:
             Validation report dict
         """

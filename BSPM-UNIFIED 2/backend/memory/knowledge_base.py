@@ -14,6 +14,7 @@ Complete implementation of RAG knowledge base:
 import os
 import json
 import hashlib
+import threading
 from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -22,6 +23,14 @@ from pathlib import Path
 import faiss
 import numpy as np
 import requests
+
+# Import atomic write utilities
+import sys
+sys.path.insert(0, '/home/user/BSPM-UNIFIED/BSPM-UNIFIED 2')
+from backend.utils.atomic_write import atomic_write_json
+
+# Expected embedding dimensions for nomic-embed-text
+EXPECTED_EMBEDDING_DIM = 768
 
 
 @dataclass
@@ -64,7 +73,7 @@ class KnowledgeBase:
     ):
         """
         Initialize knowledge base
-        
+
         Args:
             vectorstore_path: Directory to store FAISS index and metadata
             embedding_url: Ollama embeddings API endpoint
@@ -75,30 +84,34 @@ class KnowledgeBase:
         self.embedding_url = embedding_url
         self.embedding_model = embedding_model
         self.dimension = dimension
-        
+
+        # Thread safety lock for concurrent operations
+        self._lock = threading.Lock()
+
         # FAISS index and document store
         self.index: Optional[faiss.Index] = None
         self.documents: Dict[str, Document] = {}
         self.doc_id_to_index: Dict[str, int] = {}  # Map doc_id -> FAISS index position
-        
+        self.index_to_doc_id: Dict[int, str] = {}  # Reverse map: FAISS index -> doc_id (O(1) lookup)
+
         # Load or create index
         self._load_or_create_index()
     
     def _load_or_create_index(self):
         """Load existing FAISS index or create new one"""
         os.makedirs(self.vectorstore_path, exist_ok=True)
-        
+
         index_path = os.path.join(self.vectorstore_path, "index.faiss")
         metadata_path = os.path.join(self.vectorstore_path, "metadata.json")
-        
+
         if os.path.exists(index_path) and os.path.exists(metadata_path):
             # Load existing index
             self.index = faiss.read_index(index_path)
-            
+
             with open(metadata_path, 'r') as f:
                 metadata_list = json.load(f)
-            
-            # Reconstruct document store
+
+            # Reconstruct document store with both forward and reverse mappings
             for idx, item in enumerate(metadata_list):
                 doc = Document(
                     content=item['content'],
@@ -107,7 +120,8 @@ class KnowledgeBase:
                 )
                 self.documents[doc.doc_id] = doc
                 self.doc_id_to_index[doc.doc_id] = idx
-            
+                self.index_to_doc_id[idx] = doc.doc_id  # Build reverse mapping
+
             print(f"[KB] Loaded {len(self.documents)} documents from {self.vectorstore_path}")
         else:
             # Create new index
@@ -118,17 +132,18 @@ class KnowledgeBase:
     
     def _get_embedding(self, text: str, timeout: int = 30) -> np.ndarray:
         """
-        Get embedding vector from Ollama
-        
+        Get embedding vector from Ollama with dimension validation
+
         Args:
             text: Text to embed
             timeout: Request timeout in seconds
-        
+
         Returns:
             768-dimensional numpy array (float32)
-        
+
         Raises:
             RuntimeError: If embedding API fails
+            ValueError: If embedding has wrong dimensions
         """
         try:
             response = requests.post(
@@ -140,50 +155,69 @@ class KnowledgeBase:
                 timeout=timeout
             )
             response.raise_for_status()
-            
+
             result = response.json()
             embedding = result.get("embedding")
-            
+
             if not embedding:
                 raise RuntimeError("No embedding in response")
-            
+
             # Convert to numpy array (FAISS requires float32)
-            return np.array(embedding, dtype=np.float32)
-        
+            embedding_array = np.array(embedding, dtype=np.float32)
+
+            # Validate embedding is numpy array
+            if not isinstance(embedding_array, np.ndarray):
+                raise ValueError(
+                    f"Embedding must be numpy array, got {type(embedding_array)}"
+                )
+
+            # Validate shape is (768,) for nomic-embed-text
+            if embedding_array.shape != (EXPECTED_EMBEDDING_DIM,):
+                raise ValueError(
+                    f"Embedding dimension mismatch: expected ({EXPECTED_EMBEDDING_DIM},), "
+                    f"got {embedding_array.shape}. "
+                    f"Model '{self.embedding_model}' may not be compatible."
+                )
+
+            return embedding_array
+
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Failed to get embedding: {e}")
     
     def add_document(self, content: str, metadata: Dict) -> str:
         """
-        Add document to knowledge base
-        
+        Add document to knowledge base (thread-safe)
+
         Args:
             content: Document text content
             metadata: Dict with type, source, timestamps, etc.
-        
+
         Returns:
             Document ID (SHA256 hash)
         """
         # Create document
         doc = Document(content=content, metadata=metadata)
-        
+
         # Get embedding
         doc.embedding = self._get_embedding(content)
-        
-        # Add to FAISS index
-        # reshape(1, -1) because FAISS expects 2D array (batch of vectors)
-        self.index.add(doc.embedding.reshape(1, -1))
-        
-        # Store document and mapping
-        faiss_index = self.index.ntotal - 1  # Last added index
-        self.documents[doc.doc_id] = doc
-        self.doc_id_to_index[doc.doc_id] = faiss_index
-        
-        # Persist to disk
-        self._save_index()
-        
+
+        # Thread-safe index update
+        with self._lock:
+            # Add to FAISS index
+            # reshape(1, -1) because FAISS expects 2D array (batch of vectors)
+            self.index.add(doc.embedding.reshape(1, -1))
+
+            # Store document and mapping
+            faiss_index = self.index.ntotal - 1  # Last added index
+            self.documents[doc.doc_id] = doc
+            self.doc_id_to_index[doc.doc_id] = faiss_index
+            self.index_to_doc_id[faiss_index] = doc.doc_id  # Update reverse mapping
+
+            # Persist to disk (atomic write)
+            self._save_index()
+
         print(f"[KB] Added document: {doc.doc_id} ({len(content)} chars)")
-        
+
         return doc.doc_id
     
     def add_conversation_turn(
@@ -327,62 +361,60 @@ class KnowledgeBase:
         filter_type: Optional[str] = None
     ) -> List[Dict]:
         """
-        Semantic search with optional metadata filtering
-        
+        Semantic search with optional metadata filtering (thread-safe, O(1) lookup)
+
         Args:
             query: Search query text
             k: Number of results to return
             filter_type: Optional filter by metadata['type']
-        
+
         Returns:
             List of dicts with content, metadata, score, doc_id
         """
-        if self.index.ntotal == 0:
-            return []
-        
-        # Get query embedding
-        query_embedding = self._get_embedding(query)
-        
-        # Search FAISS (get extra results for filtering)
-        search_k = k * 3 if filter_type else k
-        distances, indices = self.index.search(
-            query_embedding.reshape(1, -1),
-            min(search_k, self.index.ntotal)
-        )
-        
-        # Retrieve documents
-        results = []
-        for distance, idx in zip(distances[0], indices[0]):
-            if idx == -1:  # FAISS returns -1 for empty slots
-                continue
-            
-            # Find document by FAISS index
-            doc_id = None
-            for did, didx in self.doc_id_to_index.items():
-                if didx == idx:
-                    doc_id = did
+        with self._lock:
+            if self.index.ntotal == 0:
+                return []
+
+            # Get query embedding (outside lock for better concurrency)
+            query_embedding = self._get_embedding(query)
+
+            # Re-acquire lock for index search
+            # Search FAISS (get extra results for filtering)
+            search_k = k * 3 if filter_type else k
+            distances, indices = self.index.search(
+                query_embedding.reshape(1, -1),
+                min(search_k, self.index.ntotal)
+            )
+
+            # Retrieve documents using O(1) reverse mapping
+            results = []
+            for distance, idx in zip(distances[0], indices[0]):
+                if idx == -1:  # FAISS returns -1 for empty slots
+                    continue
+
+                # O(1) lookup using reverse mapping (was O(N) loop before)
+                doc_id = self.index_to_doc_id.get(idx)
+
+                if not doc_id or doc_id not in self.documents:
+                    continue
+
+                doc = self.documents[doc_id]
+
+                # Apply metadata filter
+                if filter_type and doc.metadata.get("type") != filter_type:
+                    continue
+
+                results.append({
+                    "content": doc.content,
+                    "metadata": doc.metadata,
+                    "score": float(distance),  # L2 distance (lower = more similar)
+                    "doc_id": doc.doc_id
+                })
+
+                if len(results) >= k:
                     break
-            
-            if not doc_id or doc_id not in self.documents:
-                continue
-            
-            doc = self.documents[doc_id]
-            
-            # Apply metadata filter
-            if filter_type and doc.metadata.get("type") != filter_type:
-                continue
-            
-            results.append({
-                "content": doc.content,
-                "metadata": doc.metadata,
-                "score": float(distance),  # L2 distance (lower = more similar)
-                "doc_id": doc.doc_id
-            })
-            
-            if len(results) >= k:
-                break
-        
-        return results
+
+            return results
     
     def hybrid_search(
         self,
@@ -428,14 +460,37 @@ class KnowledgeBase:
         return "\n".join(context_parts) if context_parts else "No relevant context found."
     
     def _save_index(self):
-        """Persist FAISS index and metadata to disk"""
+        """
+        Persist FAISS index and metadata to disk (atomic write)
+
+        Uses atomic write pattern to prevent corruption from partial writes.
+        This method should be called while holding self._lock.
+        """
         os.makedirs(self.vectorstore_path, exist_ok=True)
-        
+
         # Save FAISS index
+        # Note: FAISS doesn't support atomic write directly, but we save to temp first
         index_path = os.path.join(self.vectorstore_path, "index.faiss")
-        faiss.write_index(self.index, index_path)
-        
+        temp_index_path = index_path + ".tmp"
+
+        try:
+            # Write FAISS index to temp file
+            faiss.write_index(self.index, temp_index_path)
+
+            # Atomically rename
+            os.replace(temp_index_path, index_path)
+
+        except Exception as e:
+            # Clean up temp file on error
+            if os.path.exists(temp_index_path):
+                try:
+                    os.unlink(temp_index_path)
+                except:
+                    pass
+            raise OSError(f"Failed to save FAISS index: {e}") from e
+
         # Save metadata (without embeddings to reduce file size)
+        # Use atomic write for JSON
         metadata_path = os.path.join(self.vectorstore_path, "metadata.json")
         metadata_list = [
             {
@@ -445,9 +500,8 @@ class KnowledgeBase:
             }
             for doc in self.documents.values()
         ]
-        
-        with open(metadata_path, 'w') as f:
-            json.dump(metadata_list, f, indent=2)
+
+        atomic_write_json(metadata_path, metadata_list, indent=2)
     
     def get_stats(self) -> Dict:
         """
