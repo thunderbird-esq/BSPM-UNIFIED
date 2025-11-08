@@ -77,3 +77,12 @@ node_modules/
 *.wasm
 *.o
 *.a
+
+# Backup files
+*.backup
+*.bak
+*.pre-*
+*~
+
+# Test files (generated)
+test_*.py
