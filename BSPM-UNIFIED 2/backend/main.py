@@ -454,12 +454,19 @@ async def _check_ollama_health() -> Dict[str, Any]:
             models = response.json().get("models", [])
             model_names = [m["name"] for m in models]
 
+            # Check if required models are loaded (match with or without tags like :latest, :8b)
+            required_models = [settings.pm_model, settings.embedding_model]
+            models_ok = all(
+                any(loaded.startswith(required) for loaded in model_names)
+                for required in required_models
+            )
+
             health_data = {
                 "status": "healthy",
                 "latency_ms": latency,
                 "models_loaded": model_names,
-                "required_models": [settings.pm_model, settings.embedding_model],
-                "models_ok": all(m in model_names for m in [settings.pm_model, settings.embedding_model]),
+                "required_models": required_models,
+                "models_ok": models_ok,
                 "degraded": False
             }
 
