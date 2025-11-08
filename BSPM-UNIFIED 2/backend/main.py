@@ -305,6 +305,16 @@ async def startup_event():
     """Start background services on application startup"""
     await task_queue.start()
     logger.info("Task queue started")
+
+    # Initialize knowledge base
+    from memory.knowledge_base import initialize_kb
+    initialize_kb(
+        vectorstore_path=settings.vectorstore_path,
+        embedding_url=settings.ollama_embeddings_url,
+        embedding_model=settings.embedding_model
+    )
+    logger.info("Knowledge base initialized")
+
     logger.info("GBStudio Automation Hub v3.3 started")
 
 
@@ -1119,9 +1129,9 @@ async def reindex_document(source_file: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/v1/admin/kb/upload")
+@app.post("/api/v1/admin/kb/upload", dependencies=[Depends(verify_api_key)])
 async def upload_kb_document(request: DocumentUploadRequest):
-    """Upload new document to knowledge base"""
+    """Upload new document to knowledge base (requires API key)"""
     try:
         from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)

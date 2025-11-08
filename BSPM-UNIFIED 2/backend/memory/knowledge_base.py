@@ -500,3 +500,42 @@ if __name__ == "__main__":
     # Stats
     print("\n[Stats]")
     print(kb.get_stats())
+
+
+# ============================================================================
+# Global KB Instance
+# ============================================================================
+
+# Global knowledge base instance (initialized at startup)
+kb: Optional[KnowledgeBase] = None
+
+
+def initialize_kb(
+    vectorstore_path: str = "/app/vectorstore",
+    embedding_url: str = "http://host.docker.internal:11434/api/embeddings",
+    embedding_model: str = "nomic-embed-text"
+) -> KnowledgeBase:
+    """
+    Initialize global knowledge base instance.
+
+    This should be called during application startup.
+
+    Args:
+        vectorstore_path: Directory for FAISS index and metadata
+        embedding_url: Ollama embeddings API endpoint
+        embedding_model: Model name for embeddings
+
+    Returns:
+        Initialized KnowledgeBase instance
+    """
+    global kb
+
+    kb = KnowledgeBase(
+        vectorstore_path=vectorstore_path,
+        embedding_url=embedding_url,
+        embedding_model=embedding_model
+    )
+
+    print(f"[KB] Initialized global knowledge base at {vectorstore_path}")
+
+    return kb

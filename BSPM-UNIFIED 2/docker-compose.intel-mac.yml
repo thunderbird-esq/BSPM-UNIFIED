@@ -37,7 +37,7 @@ services:
       - GBSTUDIO_COMFYUI_API_URL=http://comfyui:8188
       
       # Models
-      - GBSTUDIO_PM_MODEL=llama3
+      - GBSTUDIO_PM_MODEL=llama3:8b
       - GBSTUDIO_EMBEDDING_MODEL=nomic-embed-text
       
       # Timeouts

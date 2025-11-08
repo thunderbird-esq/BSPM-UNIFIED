@@ -223,12 +223,15 @@ class KnowledgeBaseAdmin:
         
         # Save to docs directory
         file_path = self.docs_dir / filename
-        
+
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(content)
-        
-        # Index
-        chunk_ids = self.kb.add_project_document(content, filename)
+
+        # Index - pass file path and document type
+        chunk_ids = self.kb.add_project_document(
+            filepath=str(file_path),
+            doc_type=filename.replace('.md', '')
+        )
         
         logger.info(
             f"Uploaded document {filename} with {len(chunk_ids)} chunks",
