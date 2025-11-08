@@ -38,7 +38,7 @@ from pydantic_settings import BaseSettings
 import uvicorn
 
 # Validation models
-from backend.models import (
+from models import (
     SpriteType,
     ExportFormat,
     VariationType,
@@ -64,7 +64,7 @@ from backend.models import (
 )
 
 # Logging setup (MUST be first)
-from backend.logging_config import setup_logging, LoggerAdapter
+from logging_config import setup_logging, LoggerAdapter
 
 # Setup structured logging with rotation
 logger = setup_logging(
@@ -75,18 +75,18 @@ logger = setup_logging(
 )
 
 # Security and task queue
-from backend.security import check_rate_limit, verify_api_key, api_key_manager, rate_limiter
-from backend.task_queue import task_queue, Priority
+from security import check_rate_limit, verify_api_key, api_key_manager, rate_limiter
+from task_queue import task_queue, Priority
 
 # Medium-priority features
-from backend.style_presets import StylePreset, get_preset_by_name, list_presets, get_optimal_preset_for_description
-from backend.regeneration_manager import regeneration_manager, GenerationAttempt
-from backend.sprite_manager import create_sprite_manager
-from backend.batch_generator import create_batch_generator
-from backend.kb_admin import create_kb_admin
+from style_presets import StylePreset, get_preset_by_name, list_presets, get_optimal_preset_for_description
+from regeneration_manager import regeneration_manager, GenerationAttempt
+from sprite_manager import create_sprite_manager
+from batch_generator import create_batch_generator
+from kb_admin import create_kb_admin
 
 # Graceful degradation
-from backend.graceful_degradation import (
+from graceful_degradation import (
     fallback_on_failure,
     skip_on_failure,
     degraded_mode,
@@ -95,7 +95,7 @@ from backend.graceful_degradation import (
 )
 
 # Retry logic with circuit breakers
-from backend.retry_logic import (
+from retry_logic import (
     retry_with_backoff,
     ollama_circuit_breaker,
     comfyui_circuit_breaker,
@@ -104,7 +104,7 @@ from backend.retry_logic import (
 )
 
 # Metrics
-from backend.metrics import metrics, MetricsCollector
+from metrics import metrics, MetricsCollector
 
 
 class Settings(BaseSettings):
