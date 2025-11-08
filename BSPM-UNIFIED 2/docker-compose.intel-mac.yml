@@ -20,6 +20,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile.intel-mac
     container_name: gbstudio_backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     volumes:
