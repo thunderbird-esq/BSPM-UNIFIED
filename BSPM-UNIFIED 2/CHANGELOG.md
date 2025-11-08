@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.3.1] - 2025-11-08 - Apple Silicon M2/M3 Compatibility
+
+### ✅ Apple Silicon Support
+
+#### Docker Compatibility Fixes
+- **Fixed:** Removed architecture checks from Dockerfiles that blocked Apple Silicon builds
+  - `backend/Dockerfile.intel-mac` - Removed `uname -m` check at line 12-13
+  - `backend/comfyui/Dockerfile.intel-mac` - Removed `uname -m` check at line 10
+  - **Impact:** Docker can now build x86_64 images on ARM Macs via Rosetta 2
+  - **Files:** `backend/Dockerfile.intel-mac:11-12`, `backend/comfyui/Dockerfile.intel-mac:9-10`
+
+#### Docker Compose Enhancements
+- **Added:** `platform: linux/amd64` to force x86_64 emulation on Apple Silicon
+  - Ensures containers run via Rosetta 2 regardless of host architecture
+  - **Files:** `docker-compose.intel-mac.yml:18, 75`
+
+- **Fixed:** Ollama connectivity from containers on Apple Silicon
+  - Added `extra_hosts: - "host.docker.internal:host-gateway"` mapping
+  - Resolves Docker networking issue where `host.docker.internal` doesn't work with emulated containers
+  - **Impact:** Backend can now reach Ollama running on host Mac
+  - **Files:** `docker-compose.intel-mac.yml:23-24`
+
+#### Model Configuration
+- **Fixed:** Ollama model names to include version tags
+  - Changed `GBSTUDIO_PM_MODEL` from `llama3` to `llama3:8b`
+  - Changed `GBSTUDIO_EMBEDDING_MODEL` from `nomic-embed-text` to `nomic-embed-text:latest`
+  - **Impact:** API calls now use correct model names matching Ollama's format
+  - **Files:** `docker-compose.intel-mac.yml:40-41`
+
+- **Fixed:** Model matching logic to handle version tags
+  - Changed from exact match to prefix match using `startswith()`
+  - Health check now recognizes `llama3:8b` as matching required model `llama3`
+  - **Impact:** Health checks pass correctly with tagged model names
+  - **Files:** `backend/main.py:457-462`
+
+#### Backend Import Fixes
+- **Fixed:** Module import errors in Docker container
+  - Removed `backend.` prefix from all imports in `main.py` (13 imports fixed)
+  - Changed uvicorn command from `backend.main:app` to `main:app`
+  - **Reason:** Dockerfile copies `./backend/*` to `/app/`, no `backend/` subdirectory exists
+  - **Impact:** Backend starts successfully without ModuleNotFoundError
+  - **Files:** `backend/main.py:41,67,78-107,241`, `backend/Dockerfile.intel-mac:95`
+
+### 🧪 Testing
+
+#### Verified on Apple Silicon M2
+- ✅ Docker build succeeds via Rosetta 2 emulation
+- ✅ Backend connects to Ollama on host via `host.docker.internal`
+- ✅ Health checks pass with `models_ok: true`
+- ✅ PM Agent responds successfully (llama3:8b inference working)
+- ✅ ComfyUI service healthy on CPU
+- ✅ Prometheus metrics collecting correctly
+
+**Performance:** 20-30% slower than Intel due to Rosetta 2 emulation, but fully functional.
+
+---
+
 ## [3.3.0] - 2025-11-07 - Security Hardening Release
 
 ### 🔒 Security Fixes (CRITICAL)
