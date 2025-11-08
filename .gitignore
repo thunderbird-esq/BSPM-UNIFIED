@@ -1,0 +1,45 @@
+# macOS metadata files
+__MACOSX/
+.DS_Store
+*.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Logs
+*.log
+*.jsonl
+app/logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+
+# Temporary files
+temp_outputs/
+*.tmp
+
+# Docker
+.dockerignore
+
+# Agent memory (optional - uncomment if you want to exclude)
+# agent_memory/conversations/
+
+# Vector store data
+# vectorstore/
