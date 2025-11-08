@@ -236,9 +236,9 @@ async def add_correlation_id_and_metrics(request: Request, call_next):
     
     response.headers["X-Correlation-ID"] = correlation_id
     response.headers["X-Response-Time"] = f"{duration:.3f}s"
-    
+
     # Record metrics
-    from backend.metrics import http_requests_total, http_request_duration_seconds
+    from metrics import http_requests_total, http_request_duration_seconds
     http_requests_total.labels(
         method=method,
         endpoint=endpoint,
@@ -1002,7 +1002,7 @@ async def list_kb_documents(filter_type: Optional[str] = None, api_key: str = De
     """List all documents in knowledge base"""
     try:
         logger.info(f"Admin operation: list_kb_documents by API key {api_key[:8]}...")
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         documents = admin.list_documents(filter_type=filter_type)
 
@@ -1021,7 +1021,7 @@ async def get_kb_document_details(doc_id: str, api_key: str = Depends(verify_api
     """Get full details for a specific document"""
     try:
         logger.info(f"Admin operation: get_kb_document_details for {doc_id} by API key {api_key[:8]}...")
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         details = admin.get_document_details(doc_id)
 
@@ -1042,7 +1042,7 @@ async def reindex_document(source_file: str, api_key: str = Depends(verify_api_k
     """Re-index a specific document"""
     try:
         logger.info(f"Admin operation: reindex_document {source_file} by API key {api_key[:8]}...")
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.reindex_document(source_file)
         return result
@@ -1059,7 +1059,7 @@ async def upload_kb_document(request: DocumentUploadRequest, api_key: str = Depe
     """Upload new document to knowledge base"""
     try:
         logger.info(f"Admin operation: upload_kb_document {request.filename} by API key {api_key[:8]}...")
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.upload_document(filename=request.filename, content=request.content)
         return result
@@ -1078,7 +1078,7 @@ async def delete_kb_document(source_file: str, confirm: bool = False, api_key: s
         if not confirm:
             raise HTTPException(status_code=400, detail="Must set confirm=true to delete document")
 
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.delete_document(source_file)
         return result
@@ -1095,7 +1095,7 @@ async def test_kb_search(request: KBSearchRequest, api_key: str = Depends(verify
     """Test knowledge base search functionality"""
     try:
         logger.info(f"Admin operation: test_kb_search for '{request.query}' by API key {api_key[:8]}...")
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         results = admin.test_search(query=request.query, limit=request.limit)
         return results
@@ -1110,7 +1110,7 @@ async def get_kb_statistics(api_key: str = Depends(verify_api_key)):
     """Get knowledge base statistics"""
     try:
         logger.info(f"Admin operation: get_kb_statistics by API key {api_key[:8]}...")
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         stats = admin.get_statistics()
         return stats
@@ -1125,7 +1125,7 @@ async def rebuild_kb_index(api_key: str = Depends(verify_api_key)):
     """Rebuild entire knowledge base from source files"""
     try:
         logger.info(f"Admin operation: rebuild_kb_index by API key {api_key[:8]}...")
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.rebuild_index()
         return result
