@@ -39,7 +39,7 @@ from pydantic_settings import BaseSettings
 import uvicorn
 
 # Logging setup (MUST be first)
-from backend.logging_config import setup_logging, LoggerAdapter
+from logging_config import setup_logging, LoggerAdapter
 
 # Setup structured logging with rotation
 logger = setup_logging(
@@ -50,18 +50,18 @@ logger = setup_logging(
 )
 
 # Security and task queue
-from backend.security import check_rate_limit, verify_api_key, api_key_manager, rate_limiter
-from backend.task_queue import task_queue, Priority
+from security import check_rate_limit, verify_api_key, api_key_manager, rate_limiter
+from task_queue import task_queue, Priority
 
 # Medium-priority features
-from backend.style_presets import StylePreset, get_preset_by_name, list_presets, get_optimal_preset_for_description
-from backend.regeneration_manager import regeneration_manager, GenerationAttempt
-from backend.sprite_manager import create_sprite_manager
-from backend.batch_generator import create_batch_generator
-from backend.kb_admin import create_kb_admin
+from style_presets import StylePreset, get_preset_by_name, list_presets, get_optimal_preset_for_description
+from regeneration_manager import regeneration_manager, GenerationAttempt
+from sprite_manager import create_sprite_manager
+from batch_generator import create_batch_generator
+from kb_admin import create_kb_admin
 
 # Graceful degradation
-from backend.graceful_degradation import (
+from graceful_degradation import (
     fallback_on_failure,
     skip_on_failure,
     degraded_mode,
@@ -70,7 +70,7 @@ from backend.graceful_degradation import (
 )
 
 # Retry logic with circuit breakers
-from backend.retry_logic import (
+from retry_logic import (
     retry_with_backoff,
     ollama_circuit_breaker,
     comfyui_circuit_breaker,
@@ -79,7 +79,7 @@ from backend.retry_logic import (
 )
 
 # Metrics
-from backend.metrics import metrics, MetricsCollector
+from metrics import metrics, MetricsCollector
 
 
 class Settings(BaseSettings):
@@ -340,7 +340,7 @@ async def add_correlation_id_and_metrics(request: Request, call_next):
     response.headers["X-Response-Time"] = f"{duration:.3f}s"
     
     # Record metrics
-    from backend.metrics import http_requests_total, http_request_duration_seconds
+    from metrics import http_requests_total, http_request_duration_seconds
     http_requests_total.labels(
         method=method,
         endpoint=endpoint,
@@ -1069,7 +1069,7 @@ async def get_batch_status(batch_id: str, task_ids: List[str]):
 async def list_kb_documents(filter_type: Optional[str] = None):
     """List all documents in knowledge base"""
     try:
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         documents = admin.list_documents(filter_type=filter_type)
         
@@ -1087,7 +1087,7 @@ async def list_kb_documents(filter_type: Optional[str] = None):
 async def get_kb_document_details(doc_id: str):
     """Get full details for a specific document"""
     try:
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         details = admin.get_document_details(doc_id)
         
@@ -1107,7 +1107,7 @@ async def get_kb_document_details(doc_id: str):
 async def reindex_document(source_file: str):
     """Re-index a specific document"""
     try:
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.reindex_document(source_file)
         return result
@@ -1123,7 +1123,7 @@ async def reindex_document(source_file: str):
 async def upload_kb_document(request: DocumentUploadRequest):
     """Upload new document to knowledge base"""
     try:
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.upload_document(filename=request.filename, content=request.content)
         return result
@@ -1137,7 +1137,7 @@ async def upload_kb_document(request: DocumentUploadRequest):
 async def delete_kb_document(source_file: str):
     """Delete document from knowledge base"""
     try:
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.delete_document(source_file)
         return result
@@ -1151,7 +1151,7 @@ async def delete_kb_document(source_file: str):
 async def test_kb_search(request: SearchTestRequest):
     """Test knowledge base search functionality"""
     try:
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         results = admin.test_search(query=request.query, limit=request.limit)
         return results
@@ -1165,7 +1165,7 @@ async def test_kb_search(request: SearchTestRequest):
 async def get_kb_statistics():
     """Get knowledge base statistics"""
     try:
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         stats = admin.get_statistics()
         return stats
@@ -1179,7 +1179,7 @@ async def get_kb_statistics():
 async def rebuild_kb_index():
     """Rebuild entire knowledge base from source files"""
     try:
-        from backend.memory.knowledge_base import kb
+        from memory.knowledge_base import kb
         admin = create_kb_admin(kb, settings.project_docs_dir)
         result = admin.rebuild_index()
         return result
