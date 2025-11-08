@@ -29,13 +29,16 @@ echo -e "${BLUE}[1/6]${NC} Running pre-flight checks..."
 
 # Check architecture
 ARCH=$(uname -m)
-if [[ "$ARCH" != "x86_64" ]]; then
-    echo -e "${RED}❌ ERROR: This system requires Intel (x86_64) architecture${NC}"
-    echo -e "   Current architecture: ${ARCH}"
-    echo -e "   This script is designed for Intel Macs only."
+if [[ "$ARCH" == "x86_64" ]]; then
+    echo -e "   ${GREEN}✓${NC} Architecture: x86_64 (Intel)"
+elif [[ "$ARCH" == "arm64" ]]; then
+    echo -e "   ${GREEN}✓${NC} Architecture: arm64 (Apple Silicon)"
+    echo -e "   ${YELLOW}Note: Using Rosetta 2 emulation for x86_64 containers${NC}"
+else
+    echo -e "${RED}❌ ERROR: Unsupported architecture: ${ARCH}${NC}"
+    echo -e "   This script supports Intel (x86_64) and Apple Silicon (arm64) only."
     exit 1
 fi
-echo -e "   ${GREEN}✓${NC} Architecture: x86_64 (Intel)"
 
 # Check Docker Desktop is running
 if ! docker info > /dev/null 2>&1; then
