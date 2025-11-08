@@ -235,7 +235,7 @@ class KnowledgeBaseAdmin:
         
         logger.info(
             f"Uploaded document {filename} with {len(chunk_ids)} chunks",
-            extra={'filename': filename, 'chunks': len(chunk_ids)}
+            extra={'doc_filename': filename, 'chunks': len(chunk_ids)}
         )
         
         return {
