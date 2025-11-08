@@ -8,8 +8,6 @@
 #   Stop:  docker compose -f docker-compose.intel-mac.yml down
 #   Logs:  docker compose -f docker-compose.intel-mac.yml logs -f
 
-version: '3.8'
-
 services:
   # ============================================================================
   # Backend - FastAPI application with PM agent

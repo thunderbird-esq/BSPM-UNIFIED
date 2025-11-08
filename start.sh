@@ -27,15 +27,15 @@ echo ""
 
 echo -e "${BLUE}[1/6]${NC} Running pre-flight checks..."
 
-# Check architecture
+# Check architecture (compatible with both Intel and Apple Silicon)
 ARCH=$(uname -m)
-if [[ "$ARCH" != "x86_64" ]]; then
-    echo -e "${RED}❌ ERROR: This system requires Intel (x86_64) architecture${NC}"
-    echo -e "   Current architecture: ${ARCH}"
-    echo -e "   This script is designed for Intel Macs only."
-    exit 1
+if [[ "$ARCH" == "x86_64" ]]; then
+    echo -e "   ${GREEN}✓${NC} Architecture: x86_64 (Intel Mac)"
+elif [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
+    echo -e "   ${GREEN}✓${NC} Architecture: arm64 (Apple Silicon)"
+else
+    echo -e "   ${YELLOW}⚠${NC}  Architecture: ${ARCH} (untested)"
 fi
-echo -e "   ${GREEN}✓${NC} Architecture: x86_64 (Intel)"
 
 # Check Docker Desktop is running
 if ! docker info > /dev/null 2>&1; then
