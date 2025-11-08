@@ -1,95 +1,52 @@
-# ComfyUI Container for Intel Mac
-# Version: 3.2
-# Platform: Intel Mac (macOS Ventura) + Docker
-# Purpose: CPU-only ComfyUI with Impact Pack for sprite sheet generation
-# Models: Mounted from host, not downloaded during build
+# ComfyUI Container for Intel Mac / Apple Silicon
+# Version: 3.3
+# Platform: macOS (both Intel and Apple Silicon) + Docker
+# Purpose: CPU-only ComfyUI for sprite generation
 
-FROM python:3.11-slim-bullseye AS builder
-
-# Architecture check - fail fast if not x86_64
-RUN [ "$(uname -m)" = "x86_64" ] || (echo "ERROR: This image requires x86_64 architecture" && exit 1)
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    curl \
-    ca-certificates \
-    build-essential \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /app
-
-# Clone ComfyUI
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git && \
-    cd ComfyUI && \
-    git checkout v0.0.8
-
-# Install PyTorch CPU-only
-RUN pip install --no-cache-dir \
-    torch==2.1.0 \
-    torchvision==0.16.0 \
-    torchaudio==2.1.0 \
-    --index-url https://download.pytorch.org/whl/cpu
-
-# Install ComfyUI requirements
-WORKDIR /app/ComfyUI
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install ComfyUI-Impact-Pack custom nodes
-WORKDIR /app/ComfyUI/custom_nodes
-RUN git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git && \
-    cd ComfyUI-Impact-Pack && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Runtime stage
 FROM python:3.11-slim-bullseye
 
-# Install runtime dependencies only
+WORKDIR /app
+
+# Install system dependencies for ComfyUI
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    wget \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
     libgomp1 \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy ComfyUI from builder
-COPY --from=builder /app/ComfyUI /app/ComfyUI
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+# Clone ComfyUI
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git /app/ComfyUI
 
-# Create non-root user (UID 1000 for Mac compatibility)
-RUN groupadd -g 1000 comfyui && \
-    useradd -u 1000 -g comfyui -m -s /bin/bash comfyui && \
-    chown -R comfyui:comfyui /app/ComfyUI
-
-# Create necessary directories
-RUN mkdir -p /app/ComfyUI/output /app/ComfyUI/input /app/ComfyUI/temp && \
-    chown -R comfyui:comfyui /app/ComfyUI
-
-# Switch to non-root user
-USER comfyui
-
-# Set working directory
 WORKDIR /app/ComfyUI
 
-# Environment variables
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    torch==2.1.0 \
+    torchvision==0.16.0 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+RUN pip install --no-cache-dir \
+    -r requirements.txt
+
+# Create model directories
+RUN mkdir -p models/checkpoints models/vae models/loras models/controlnet \
+    models/embeddings models/upscale_models custom_nodes output input
+
+# Environment for CPU-only execution
 ENV COMFYUI_DEVICE=cpu
 ENV PYTORCH_ENABLE_MPS_FALLBACK=0
 ENV PYTHONUNBUFFERED=1
 
-# Expose port
+# Expose ComfyUI port
 EXPOSE 8188
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-  CMD curl -f http://localhost:8188/system_stats || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8188/system_stats || exit 1
 
 # Start ComfyUI
 CMD ["python", "main.py", "--listen", "0.0.0.0", "--port", "8188", "--cpu"]

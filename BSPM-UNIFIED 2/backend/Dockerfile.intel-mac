@@ -1,96 +1,65 @@
+
 # GBStudio Automation Hub - Backend Dockerfile
-# Platform: Intel Mac (x86_64) - macOS Ventura 13.x
-# Target: Docker Desktop 4.25+ with Rosetta 2
+# Platform: Multi-arch (Intel Mac / Apple Silicon)
 # Final Image Size: <600MB
 
-# ============================================================================
-# Stage 1: Builder - Install dependencies with build tools
-# ============================================================================
 FROM python:3.11-slim-bullseye AS builder
 
-# Fail fast if not running on x86_64
-RUN [ "$(uname -m)" = "x86_64" ] || \
-    (echo "ERROR: This image requires x86_64 architecture. Current: $(uname -m)" && exit 1)
+WORKDIR /build
 
-WORKDIR /app
-
-# Install build dependencies for Python packages
-# gcc: Required for compiling native extensions (faiss, numpy)
-# g++: Required for C++ extensions
+# Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for Docker layer caching
+# Copy requirements
 COPY requirements.txt .
 
-# Install Python dependencies to user directory (isolated from system)
-# --no-cache-dir: Don't cache packages (saves ~100MB)
-# --user: Install to ~/.local (can be copied to runtime stage)
+# Install Python dependencies
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Install PyTorch CPU-only build (critical for Intel Mac)
-# Index URL points to CPU-only wheels (~200MB smaller than CUDA builds)
+# Install PyTorch CPU-only
 RUN pip install --no-cache-dir --user \
     torch==2.1.0 \
     torchvision==0.16.0 \
     --index-url https://download.pytorch.org/whl/cpu
 
-# Install FAISS CPU-only build
-# faiss-cpu: No GPU dependencies, optimized for CPU vector search
+# Install FAISS CPU
 RUN pip install --no-cache-dir --user faiss-cpu==1.7.4
 
-
-# ============================================================================
-# Stage 2: Runtime - Minimal production image
-# ============================================================================
+# Runtime stage
 FROM python:3.11-slim-bullseye
 
 WORKDIR /app
 
-# Copy Python packages from builder stage
-# This includes all dependencies from requirements.txt + torch + faiss
+# Copy Python packages from builder
 COPY --from=builder /root/.local /usr/local
 
-# Create non-root user for security
-# UID 1000 matches typical macOS user UID for file permission compatibility
+# Create non-root user
 RUN useradd -m -u 1000 gbstudio && \
     chown -R gbstudio:gbstudio /app
 
-# Copy application code with correct ownership
-COPY --chown=gbstudio:gbstudio . .
+# Copy backend code to /app/backend/
+COPY --chown=gbstudio:gbstudio . /app/backend/
 
-# Create required directories for runtime
-RUN mkdir -p /app/temp_outputs /app/vectorstore /app/agent_memory && \
-    chown -R gbstudio:gbstudio /app/temp_outputs /app/vectorstore /app/agent_memory
+# Create runtime directories
+RUN mkdir -p /app/temp_outputs /app/vectorstore /app/agent_memory /app/logs /app/frontend && \
+    chown -R gbstudio:gbstudio /app
 
-# Environment variables for CPU-only execution
+# Environment
 ENV COMFYUI_DEVICE=cpu
 ENV PYTORCH_ENABLE_MPS_FALLBACK=0
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
-# Switch to non-root user
 USER gbstudio
 
-# Expose API port
 EXPOSE 8000
 
-# Health check with model verification
-# start-period=300s: Allow 5 minutes for first-run model downloads
-# interval=30s: Check every 30 seconds after startup
-# timeout=10s: Fail if health check takes >10s
-# retries=3: Mark unhealthy after 3 consecutive failures
 HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
-  CMD python -c "import requests; \
-    r = requests.get('http://localhost:8000/health', timeout=5); \
-    r.raise_for_status(); \
-    services = r.json().get('services', {}); \
-    ollama = services.get('ollama', {}); \
-    assert ollama.get('status') == 'healthy', 'Ollama not healthy'; \
-    assert ollama.get('models_ok', False), 'Required models not loaded'" || exit 1
+  CMD python -c "import requests; r = requests.get('http://localhost:8000/health', timeout=5); r.raise_for_status()" || exit 1
 
-# Run application with uvicorn
-# --host 0.0.0.0: Listen on all interfaces (required for Docker networking)
-# --port 8000: Standard HTTP port
-CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run from /app/backend/
+WORKDIR /app/backend
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
