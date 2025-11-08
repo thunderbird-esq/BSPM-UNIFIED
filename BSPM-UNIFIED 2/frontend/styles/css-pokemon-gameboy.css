@@ -492,3 +492,21 @@ input {
 ::-webkit-scrollbar-thumb:hover {
     background-color: var(--gb-light);
 }
+
+/* ============================================================================
+   GB Button Enhancements - Interactive States
+   ============================================================================ */
+.gb-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 #000;
+}
+
+.gb-button:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #000;
+}
+
+.gb-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

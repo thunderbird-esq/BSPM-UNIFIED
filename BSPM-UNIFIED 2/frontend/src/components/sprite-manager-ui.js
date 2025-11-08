@@ -113,7 +113,7 @@ class SpriteManager {
                 this.debounce(() => this.refresh(), 300);
             });
         }
-        
+
         // Filter dropdown
         const filterSelect = document.getElementById('sprite-filter');
         if (filterSelect) {
@@ -122,13 +122,27 @@ class SpriteManager {
                 this.refresh();
             });
         }
-        
+
         // Action buttons
         document.querySelectorAll('[data-action]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const action = e.target.dataset.action;
                 const spriteId = e.target.dataset.spriteId;
                 this.handleAction(action, spriteId);
+            });
+        });
+
+        // Hover preview effects for sprite cards
+        document.querySelectorAll('.sprite-card').forEach(card => {
+            card.addEventListener('mouseenter', (e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.zIndex = '10';
+                e.currentTarget.style.transition = 'transform 0.2s ease, z-index 0.2s ease';
+            });
+
+            card.addEventListener('mouseleave', (e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.zIndex = '1';
             });
         });
     }

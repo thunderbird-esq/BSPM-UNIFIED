@@ -1,0 +1,459 @@
+/**
+ * GBStudio Automation Hub - Dialog System
+ * Pokemon-style Dialog Boxes and Text
+ *
+ * Features:
+ * - Classic Pokemon dialog boxes
+ * - Text typewriter effect
+ * - Dialog choices
+ * - NPC dialog styles
+ */
+
+/* ============================================================================
+   Dialog Overlay
+   ============================================================================ */
+.gb-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: overlayFadeIn 0.2s ease;
+}
+
+@keyframes overlayFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* ============================================================================
+   Dialog Box - Pokemon Style
+   ============================================================================ */
+.gb-dialog {
+    background: #fff;
+    border: 4px solid #000;
+    padding: 16px;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    max-width: 80%;
+    min-width: 400px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    color: #000;
+    line-height: 1.8;
+    box-shadow:
+        0 0 0 2px #fff,
+        0 0 0 6px #000,
+        0 8px 16px rgba(0, 0, 0, 0.5);
+    animation: dialogSlideIn 0.3s ease;
+}
+
+@keyframes dialogSlideIn {
+    from {
+        transform: translate(-50%, -60%);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, -50%);
+        opacity: 1;
+    }
+}
+
+/* ============================================================================
+   Dialog Content
+   ============================================================================ */
+.gb-dialog-content {
+    margin-bottom: 16px;
+    min-height: 60px;
+}
+
+.gb-dialog-text {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Typewriter Effect */
+.gb-dialog-text.typewriter {
+    overflow: hidden;
+    border-right: 2px solid #000;
+    white-space: nowrap;
+    animation: typewriter 2s steps(40) 1s forwards,
+               blinkCursor 0.5s step-end infinite;
+}
+
+@keyframes typewriter {
+    from {
+        width: 0;
+    }
+    to {
+        width: 100%;
+        border-right: none;
+    }
+}
+
+@keyframes blinkCursor {
+    0%, 100% {
+        border-color: transparent;
+    }
+    50% {
+        border-color: #000;
+    }
+}
+
+/* ============================================================================
+   Dialog Arrow (Continue Indicator)
+   ============================================================================ */
+.gb-dialog-arrow {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 12px solid #000;
+    animation: arrowBounce 1s ease-in-out infinite;
+}
+
+@keyframes arrowBounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-4px);
+    }
+}
+
+/* ============================================================================
+   Dialog Choices (Yes/No, Multiple Choice)
+   ============================================================================ */
+.gb-dialog-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.gb-dialog-choice {
+    background: #fff;
+    border: 3px solid #000;
+    padding: 12px 16px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: #000;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    position: relative;
+    text-align: left;
+}
+
+.gb-dialog-choice:hover {
+    background: #9bbc0f;
+    transform: translateX(4px);
+}
+
+.gb-dialog-choice:active {
+    background: #8bac0f;
+    transform: translateX(2px);
+}
+
+.gb-dialog-choice.selected {
+    background: #9bbc0f;
+}
+
+/* Selection Arrow */
+.gb-dialog-choice.selected::before {
+    content: '▶';
+    position: absolute;
+    left: -20px;
+    animation: arrowPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes arrowPulse {
+    0%, 100% {
+        transform: translateX(0);
+    }
+    50% {
+        transform: translateX(-4px);
+    }
+}
+
+/* ============================================================================
+   Dialog Header (NPC Name)
+   ============================================================================ */
+.gb-dialog-header {
+    background: #000;
+    color: #fff;
+    padding: 8px 12px;
+    margin: -16px -16px 12px -16px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.gb-dialog-avatar {
+    width: 32px;
+    height: 32px;
+    background: #9bbc0f;
+    border: 2px solid #fff;
+    image-rendering: pixelated;
+}
+
+/* ============================================================================
+   Dialog Types
+   ============================================================================ */
+
+/* Info Dialog */
+.gb-dialog.info {
+    border-color: #0074D9;
+}
+
+.gb-dialog.info .gb-dialog-header {
+    background: #0074D9;
+}
+
+/* Warning Dialog */
+.gb-dialog.warning {
+    border-color: #FF851B;
+}
+
+.gb-dialog.warning .gb-dialog-header {
+    background: #FF851B;
+}
+
+/* Error Dialog */
+.gb-dialog.error {
+    border-color: #FF4136;
+}
+
+.gb-dialog.error .gb-dialog-header {
+    background: #FF4136;
+}
+
+/* Success Dialog */
+.gb-dialog.success {
+    border-color: #2ECC40;
+}
+
+.gb-dialog.success .gb-dialog-header {
+    background: #2ECC40;
+}
+
+/* ============================================================================
+   Bottom Dialog (Pokemon Style)
+   ============================================================================ */
+.gb-dialog-bottom {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 800px;
+    background: #fff;
+    border: 4px solid #000;
+    padding: 20px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    color: #000;
+    line-height: 1.8;
+    z-index: 1000;
+    box-shadow:
+        0 0 0 2px #fff,
+        0 0 0 6px #000,
+        0 -4px 16px rgba(0, 0, 0, 0.5);
+    animation: dialogSlideUp 0.3s ease;
+}
+
+@keyframes dialogSlideUp {
+    from {
+        transform: translate(-50%, 100%);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+/* ============================================================================
+   Dialog Buttons
+   ============================================================================ */
+.gb-dialog-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+.gb-dialog-button {
+    background: #9bbc0f;
+    border: 3px solid #000;
+    padding: 10px 20px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: #000;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    text-transform: uppercase;
+}
+
+.gb-dialog-button:hover {
+    background: #8bac0f;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 0 #000;
+}
+
+.gb-dialog-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 0 #000;
+}
+
+.gb-dialog-button.primary {
+    background: #0f380f;
+    color: #9bbc0f;
+}
+
+.gb-dialog-button.primary:hover {
+    background: #306230;
+}
+
+.gb-dialog-button.cancel {
+    background: #d9534f;
+    color: #fff;
+}
+
+.gb-dialog-button.cancel:hover {
+    background: #c9302c;
+}
+
+/* ============================================================================
+   Toast Notification (Quick Message)
+   ============================================================================ */
+.gb-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #000;
+    color: #9bbc0f;
+    border: 3px solid #9bbc0f;
+    padding: 12px 20px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    z-index: 10000;
+    animation: toastSlideIn 0.3s ease, toastSlideOut 0.3s ease 2.7s;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes toastSlideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes toastSlideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+}
+
+.gb-toast.success {
+    border-color: #2ECC40;
+    color: #2ECC40;
+}
+
+.gb-toast.error {
+    border-color: #FF4136;
+    color: #FF4136;
+}
+
+.gb-toast.warning {
+    border-color: #FF851B;
+    color: #FF851B;
+}
+
+.gb-toast.info {
+    border-color: #0074D9;
+    color: #0074D9;
+}
+
+/* ============================================================================
+   Confirm Dialog
+   ============================================================================ */
+.gb-confirm-dialog {
+    min-width: 400px;
+}
+
+.gb-confirm-dialog .gb-dialog-content {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.gb-confirm-dialog .gb-dialog-buttons {
+    justify-content: center;
+}
+
+/* ============================================================================
+   Input Dialog
+   ============================================================================ */
+.gb-dialog-input {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px;
+    border: 3px solid #000;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    background: #fff;
+    color: #000;
+}
+
+.gb-dialog-input:focus {
+    outline: none;
+    border-color: #9bbc0f;
+    background: #f5f5f5;
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+@media (max-width: 768px) {
+    .gb-dialog {
+        min-width: 90%;
+        max-width: 90%;
+        font-size: 10px;
+    }
+
+    .gb-dialog-bottom {
+        width: 95%;
+        font-size: 10px;
+        padding: 16px;
+    }
+
+    .gb-dialog-button {
+        font-size: 8px;
+        padding: 8px 16px;
+    }
+}

@@ -1,0 +1,151 @@
+/**
+ * Responsive Design for GBStudio Automation Hub
+ * Mobile-first approach with breakpoints for tablet and mobile
+ */
+
+/* Mobile first approach */
+@media (max-width: 768px) {
+    .gb-container {
+        padding: 8px;
+    }
+
+    .gb-button {
+        min-width: 100%;
+        margin-bottom: 8px;
+    }
+
+    .chat-container {
+        height: 400px;
+    }
+
+    .sprite-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* Make main content stack vertically on mobile */
+    .main-content {
+        flex-direction: column;
+    }
+
+    .chat-panel,
+    .side-panel {
+        width: 100% !important;
+        max-width: 100%;
+    }
+
+    /* Adjust header actions for mobile */
+    .header-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .btn-icon {
+        font-size: 16px;
+        padding: 8px;
+    }
+
+    /* Make input area more mobile-friendly */
+    .chat-input-container {
+        flex-direction: column;
+    }
+
+    #chat-input {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+
+    .btn-send {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        font-size: 12px;
+    }
+
+    .gb-button {
+        padding: 8px 12px;
+    }
+
+    /* Reduce header size on small screens */
+    .gb-header h1 {
+        font-size: 14px;
+    }
+
+    /* Compact status bar */
+    .status-bar {
+        font-size: 10px;
+        flex-direction: column;
+        text-align: center;
+    }
+
+    /* Smaller modal on mobile */
+    .modal-content {
+        padding: 12px;
+        width: 90%;
+    }
+
+    .barry-head {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+/* Tablet */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .sprite-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .gb-container {
+        padding: 12px;
+    }
+
+    /* Adjust panel sizes for tablet */
+    .chat-panel {
+        flex: 1;
+    }
+
+    .side-panel {
+        flex: 0.8;
+    }
+}
+
+/* Large screens */
+@media (min-width: 1025px) {
+    .sprite-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+    /* Increase button sizes for touch targets */
+    .gb-button,
+    .btn-primary,
+    .btn-secondary {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    /* Remove hover effects on touch devices */
+    .gb-button:hover,
+    .btn-primary:hover,
+    .btn-secondary:hover {
+        transform: none;
+    }
+}
+
+/* Landscape orientation on mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+    .chat-window {
+        height: 200px;
+    }
+
+    .modal-content {
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+}

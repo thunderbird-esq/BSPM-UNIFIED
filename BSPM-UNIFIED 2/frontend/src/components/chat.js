@@ -169,8 +169,9 @@ export class ChatWindow {
         this.container = document.getElementById(containerId);
         this.messages = [];
         this.autoScroll = true;
+        this.typingIndicator = null;
     }
-    
+
     /**
      * Add message to chat window
      * @param {string} sender - Message sender (User, PM, System)
@@ -181,32 +182,62 @@ export class ChatWindow {
     addMessage(sender, content, metadata = {}) {
         const message = new ChatMessage(sender, content, metadata);
         const element = message.render();
-        
+
         this.container.appendChild(element);
         this.messages.push(message);
-        
+
         if (this.autoScroll) {
             this.scrollToBottom();
         }
-        
+
         return message;
     }
-    
+
     /**
      * Scroll to bottom of chat window
      */
     scrollToBottom() {
         this.container.scrollTop = this.container.scrollHeight;
     }
-    
+
+    /**
+     * Show typing indicator
+     */
+    showTypingIndicator() {
+        // Remove existing indicator if present
+        this.hideTypingIndicator();
+
+        const indicator = document.createElement('div');
+        indicator.className = 'typing-indicator';
+        indicator.innerHTML = '<span class="dot">●</span><span class="dot">●</span><span class="dot">●</span>';
+
+        this.container.appendChild(indicator);
+        this.typingIndicator = indicator;
+
+        if (this.autoScroll) {
+            this.scrollToBottom();
+        }
+    }
+
+    /**
+     * Hide typing indicator
+     */
+    hideTypingIndicator() {
+        if (this.typingIndicator) {
+            this.typingIndicator.remove();
+            this.typingIndicator = null;
+        }
+    }
+
     /**
      * Clear all messages
      */
     clear() {
         this.container.innerHTML = '';
         this.messages = [];
+        this.typingIndicator = null;
     }
-    
+
     /**
      * Get last message
      * @returns {ChatMessage|null}

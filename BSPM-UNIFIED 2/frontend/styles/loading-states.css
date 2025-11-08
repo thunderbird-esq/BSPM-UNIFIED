@@ -1,0 +1,432 @@
+/**
+ * GBStudio Automation Hub - Loading States
+ * Pokemon-style Progress Bars and Loading Indicators
+ *
+ * Features:
+ * - Animated loading text with ellipsis
+ * - Retro progress bars
+ * - Spinning sprites
+ * - Status messages
+ */
+
+/* ============================================================================
+   Loading Text - Animated Ellipsis
+   ============================================================================ */
+.loading-text {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    color: #9bbc0f;
+    animation: ellipsis 1.5s infinite;
+}
+
+@keyframes ellipsis {
+    0% {
+        content: '';
+    }
+    25% {
+        content: '.';
+    }
+    50% {
+        content: '..';
+    }
+    75% {
+        content: '...';
+    }
+    100% {
+        content: '';
+    }
+}
+
+.loading-text::after {
+    content: '';
+    animation: ellipsisContent 1.5s infinite;
+}
+
+@keyframes ellipsisContent {
+    0% {
+        content: '';
+    }
+    25% {
+        content: '.';
+    }
+    50% {
+        content: '..';
+    }
+    75% {
+        content: '...';
+    }
+    100% {
+        content: '';
+    }
+}
+
+/* ============================================================================
+   Progress Bar - Pokemon Style
+   ============================================================================ */
+.progress-bar {
+    background: #0f380f;
+    border: 4px solid #000;
+    height: 32px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.progress-fill {
+    background: #9bbc0f;
+    height: 100%;
+    transition: width 0.3s ease;
+    position: relative;
+    box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* Animated Stripes Effect */
+.progress-fill::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(255, 255, 255, 0.1) 10px,
+        rgba(255, 255, 255, 0.1) 20px
+    );
+    animation: progressStripes 1s linear infinite;
+}
+
+@keyframes progressStripes {
+    0% {
+        background-position: 0 0;
+    }
+    100% {
+        background-position: 28px 0;
+    }
+}
+
+/* Progress Bar with Percentage Text */
+.progress-bar-container {
+    position: relative;
+    width: 100%;
+}
+
+.progress-percentage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: #0f380f;
+    text-shadow: 0 0 2px #9bbc0f;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* ============================================================================
+   HP/EXP Bar Style (Pokemon)
+   ============================================================================ */
+.hp-bar {
+    background: #0f380f;
+    border: 2px solid #000;
+    height: 16px;
+    position: relative;
+    overflow: hidden;
+}
+
+.hp-bar-fill {
+    height: 100%;
+    transition: width 0.5s ease;
+    position: relative;
+}
+
+/* HP Color States */
+.hp-bar-fill.hp-high {
+    background: #8bac0f;
+}
+
+.hp-bar-fill.hp-medium {
+    background: #f0ad4e;
+}
+
+.hp-bar-fill.hp-low {
+    background: #d9534f;
+}
+
+.hp-bar-fill.hp-critical {
+    background: #d9534f;
+    animation: hpCriticalFlash 0.5s infinite;
+}
+
+@keyframes hpCriticalFlash {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* ============================================================================
+   Spinning Pokeball Loader
+   ============================================================================ */
+.pokeball-loader {
+    width: 64px;
+    height: 64px;
+    position: relative;
+    margin: 20px auto;
+    animation: spin 2s linear infinite;
+}
+
+.pokeball-loader::before {
+    content: '⚪';
+    font-size: 64px;
+    display: block;
+    image-rendering: pixelated;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================================================
+   Pixel Spinner
+   ============================================================================ */
+.pixel-spinner {
+    width: 32px;
+    height: 32px;
+    border: 4px solid #0f380f;
+    border-top-color: #9bbc0f;
+    border-radius: 50%;
+    animation: pixelSpinRotate 1s linear infinite;
+}
+
+@keyframes pixelSpinRotate {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================================================
+   Dots Loading Animation
+   ============================================================================ */
+.loading-dots {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.loading-dot {
+    width: 12px;
+    height: 12px;
+    background: #9bbc0f;
+    border: 2px solid #0f380f;
+    border-radius: 50%;
+    animation: dotBounce 1.4s infinite ease-in-out both;
+}
+
+.loading-dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.loading-dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+.loading-dot:nth-child(3) {
+    animation-delay: 0s;
+}
+
+@keyframes dotBounce {
+    0%, 80%, 100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+}
+
+/* ============================================================================
+   Status Message Box
+   ============================================================================ */
+.status-message {
+    background: #fff;
+    border: 4px solid #000;
+    padding: 16px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: #000;
+    line-height: 1.8;
+    max-width: 400px;
+    margin: 20px auto;
+    position: relative;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.status-message::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 0 16px 16px;
+    border-color: transparent transparent #000 transparent;
+}
+
+/* ============================================================================
+   Processing Animation
+   ============================================================================ */
+.processing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: #306230;
+    border: 2px solid #9bbc0f;
+    margin: 10px 0;
+}
+
+.processing-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #0f380f;
+    border-top-color: #9bbc0f;
+    border-radius: 50%;
+    animation: processingSpinRotate 0.8s linear infinite;
+}
+
+@keyframes processingSpinRotate {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.processing-text {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: #9bbc0f;
+}
+
+/* ============================================================================
+   Skeleton Loading (Pokemon Card Style)
+   ============================================================================ */
+.skeleton-card {
+    background: #306230;
+    border: 4px solid #8bac0f;
+    padding: 16px;
+    margin: 10px 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.skeleton-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(155, 188, 15, 0.3),
+        transparent
+    );
+    animation: skeletonShimmer 2s infinite;
+}
+
+@keyframes skeletonShimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+.skeleton-line {
+    height: 12px;
+    background: #0f380f;
+    margin: 8px 0;
+    border-radius: 2px;
+}
+
+.skeleton-line.short {
+    width: 60%;
+}
+
+.skeleton-line.medium {
+    width: 80%;
+}
+
+.skeleton-line.long {
+    width: 100%;
+}
+
+/* ============================================================================
+   Queue Position Indicator
+   ============================================================================ */
+.queue-position {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: #0f380f;
+    border: 2px solid #9bbc0f;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: #9bbc0f;
+}
+
+.queue-number {
+    font-size: 16px;
+    color: #8bac0f;
+    min-width: 40px;
+    text-align: center;
+}
+
+/* ============================================================================
+   Loading Overlay
+   ============================================================================ */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 56, 15, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+}
+
+.loading-overlay .loading-content {
+    text-align: center;
+    padding: 40px;
+    background: #306230;
+    border: 4px solid #9bbc0f;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+}

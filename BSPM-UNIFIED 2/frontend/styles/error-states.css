@@ -1,0 +1,169 @@
+/**
+ * Error States and Network Handling UI
+ * Retro Game Boy style error messages
+ */
+
+.error-message {
+    background: #ff0000;
+    color: #fff;
+    border: 4px solid #000;
+    padding: 16px;
+    font-family: 'Press Start 2P', monospace;
+    margin: 16px 0;
+    border-radius: 0;
+    animation: errorShake 0.5s ease-in-out;
+    position: relative;
+    z-index: 1500;
+}
+
+.error-message p {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+@keyframes errorShake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.offline-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #ff0000;
+    color: #fff;
+    text-align: center;
+    padding: 8px;
+    z-index: 2000;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    border-bottom: 4px solid #000;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0.7; }
+}
+
+.retry-button {
+    background: #9bbc0f;
+    border: 4px solid #000;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: 'Press Start 2P', monospace;
+    margin-top: 8px;
+    color: #000;
+    font-size: 10px;
+    transition: all 0.1s;
+}
+
+.retry-button:hover {
+    background: #8bac0f;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 0 #000;
+}
+
+.retry-button:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* Loading spinner for retry operations */
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 3px solid #fff;
+    border-top: 3px solid #000;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-left: 8px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error toast notifications */
+.error-toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #ff0000;
+    color: #fff;
+    border: 4px solid #000;
+    padding: 12px 16px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    z-index: 1800;
+    max-width: 300px;
+    animation: slideInUp 0.3s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        transform: translateY(100px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Warning state (less severe than error) */
+.warning-message {
+    background: #ffcc00;
+    color: #000;
+    border: 4px solid #000;
+    padding: 16px;
+    font-family: 'Press Start 2P', monospace;
+    margin: 16px 0;
+    font-size: 12px;
+}
+
+/* Success state for contrast */
+.success-message {
+    background: #9bbc0f;
+    color: #000;
+    border: 4px solid #000;
+    padding: 16px;
+    font-family: 'Press Start 2P', monospace;
+    margin: 16px 0;
+    font-size: 12px;
+    animation: successPulse 0.5s ease-in-out;
+}
+
+@keyframes successPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+}
+
+/* Network status indicator */
+.network-status {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.network-status.online {
+    background: #9bbc0f;
+    box-shadow: 0 0 8px #9bbc0f;
+}
+
+.network-status.offline {
+    background: #ff0000;
+    box-shadow: 0 0 8px #ff0000;
+}
+
+.network-status.degraded {
+    background: #ffcc00;
+    box-shadow: 0 0 8px #ffcc00;
+}

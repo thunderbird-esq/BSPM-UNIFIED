@@ -62,6 +62,18 @@ class StylePresetSelector {
                         </option>
                     `).join('')}
                 </select>
+
+                <div class="preset-thumbnails" id="preset-thumbnails">
+                    ${Object.entries(this.presets).map(([key, preset]) => `
+                        <div class="preset-thumbnail ${key === this.selectedPreset ? 'active' : ''}"
+                             data-preset="${sanitizeAttribute(key)}"
+                             title="${escapeHTML(preset.description)}">
+                            <div class="thumbnail-image ${sanitizeAttribute(key)}"></div>
+                            <div class="thumbnail-label">${escapeHTML(this.formatPresetName(key))}</div>
+                        </div>
+                    `).join('')}
+                </div>
+
                 <div class="preset-description" id="preset-description">
                     ${escapeHTML(this.presets[this.selectedPreset]?.description || '')}
                 </div>
@@ -74,13 +86,35 @@ class StylePresetSelector {
 
         this.container.innerHTML = html;
 
-        // Attach event listener
+        // Attach event listeners
         const dropdown = document.getElementById('style-preset');
         dropdown.addEventListener('change', (e) => {
             this.selectedPreset = e.target.value;
             this.updateDescription();
+            this.updateThumbnailSelection();
             if (this.onPresetChange) {
                 this.onPresetChange(this.selectedPreset);
+            }
+        });
+
+        // Attach thumbnail click listeners
+        document.querySelectorAll('.preset-thumbnail').forEach(thumbnail => {
+            thumbnail.addEventListener('click', (e) => {
+                const presetKey = e.currentTarget.dataset.preset;
+                this.setPreset(presetKey);
+                if (this.onPresetChange) {
+                    this.onPresetChange(presetKey);
+                }
+            });
+        });
+    }
+
+    updateThumbnailSelection() {
+        document.querySelectorAll('.preset-thumbnail').forEach(thumbnail => {
+            if (thumbnail.dataset.preset === this.selectedPreset) {
+                thumbnail.classList.add('active');
+            } else {
+                thumbnail.classList.remove('active');
             }
         });
     }
@@ -121,6 +155,7 @@ class StylePresetSelector {
         if (dropdown) {
             dropdown.value = presetName;
             this.updateDescription();
+            this.updateThumbnailSelection();
         }
     }
 }

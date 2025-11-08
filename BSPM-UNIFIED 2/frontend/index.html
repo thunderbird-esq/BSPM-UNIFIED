@@ -11,78 +11,84 @@
     <link rel="stylesheet" href="/frontend/styles/chat.css">
     <link rel="stylesheet" href="/frontend/styles/medium-priority.css">
     <link rel="stylesheet" href="/frontend/styles/integration.css">
-    
-    
+    <link rel="stylesheet" href="https://unpkg.com/nes.css@latest/css/nes.min.css">
+    <link rel="stylesheet" href="/frontend/styles/responsive.css">
+    <link rel="stylesheet" href="/frontend/styles/error-states.css">
+
+
     <!-- Font -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
     <!-- Barry Modal (on load) -->
-    <div id="barry-modal" class="modal-backdrop" style="display: flex;">
+    <div id="barry-modal" class="modal-backdrop" style="display: flex;" role="dialog" aria-labelledby="barry-modal-title" aria-modal="true">
         <div class="modal-content barry-modal">
-            <div class="barry-head"></div>
-            <h2>GBStudio Automation Hub</h2>
+            <div class="barry-head" role="img" aria-label="Barry the sprite generation mascot"></div>
+            <h2 id="barry-modal-title">GBStudio Automation Hub</h2>
             <p>AI-powered sprite generation for Game Boy Color</p>
-            <button id="barry-start" class="btn-primary">START</button>
+            <button id="barry-start" class="btn-primary" aria-label="Start the application">START</button>
         </div>
     </div>
     
     <!-- Main Container -->
-    <div class="gb-container" style="display: none;" id="main-container">
-        
+    <div class="gb-container" style="display: none;" id="main-container" role="main">
+
         <!-- Header -->
-        <header class="gb-header">
+        <header class="gb-header" role="banner">
             <h1>🎮 GBStudio Automation Hub</h1>
-            <div class="header-actions">
-                <button id="toggle-monitor" class="btn-icon">📊</button>
-                <button id="toggle-sprite-manager" class="btn-icon">🖼️</button>
-                <button id="toggle-batch-ops" class="btn-icon">📦</button>
-                <button id="toggle-kb-admin" class="btn-icon">📚</button>
+            <div class="header-actions" role="toolbar" aria-label="Main navigation">
+                <button id="toggle-monitor" class="btn-icon" aria-label="Toggle service monitor">📊</button>
+                <button id="toggle-sprite-manager" class="btn-icon" aria-label="Toggle sprite manager">🖼️</button>
+                <button id="toggle-batch-ops" class="btn-icon" aria-label="Toggle batch operations">📦</button>
+                <button id="toggle-kb-admin" class="btn-icon" aria-label="Toggle knowledge base admin">📚</button>
             </div>
         </header>
         
         <!-- Service Monitor (top-right, collapsible) -->
-        <div id="service-monitor" class="service-monitor"></div>
-        
+        <div id="service-monitor" class="service-monitor" role="status" aria-label="Service status monitor"></div>
+
         <!-- Main Content Area -->
         <div class="main-content">
-            
+
             <!-- Left Panel: Chat Interface -->
-            <div class="chat-panel">
-                <div id="chat-window" class="chat-window"></div>
-                
+            <div class="chat-panel" role="region" aria-label="Chat interface">
+                <div id="chat-window" class="chat-window" role="log" aria-live="polite" aria-label="Chat messages"></div>
+
                 <!-- Input Area with Style Preset Selector -->
                 <div class="input-area">
-                    <div id="style-preset-selector"></div>
-                    
+                    <div id="style-preset-selector" role="group" aria-label="Style preset selector"></div>
+
                     <div class="chat-input-container">
-                        <textarea id="chat-input" 
+                        <textarea id="chat-input"
                                   placeholder="Type your request (e.g., 'Create a knight sprite')..."
-                                  rows="3"></textarea>
-                        <button id="send-btn" class="btn-send">SEND</button>
+                                  rows="3"
+                                  aria-label="Message input"
+                                  aria-describedby="send-btn"></textarea>
+                        <button id="send-btn" class="btn-send" aria-label="Send message">SEND</button>
                     </div>
                 </div>
                 
                 <!-- Regeneration Controls (shown after generation) -->
-                <div id="regeneration-controls" style="display: none;"></div>
+                <div id="regeneration-controls" style="display: none;" role="group" aria-label="Regeneration controls"></div>
             </div>
-            
+
             <!-- Right Panel: Multi-purpose (Sprite Manager / Batch Ops / KB Admin) -->
-            <div class="side-panel">
-                <div id="sprite-manager-panel" class="panel-content" style="display: none;"></div>
-                <div id="batch-ops-panel" class="panel-content" style="display: none;"></div>
-                <div id="kb-admin-panel" class="panel-content" style="display: none;"></div>
+            <div class="side-panel" role="complementary" aria-label="Side panel">
+                <div id="sprite-manager-panel" class="panel-content" style="display: none;" role="region" aria-label="Sprite manager"></div>
+                <div id="batch-ops-panel" class="panel-content" style="display: none;" role="region" aria-label="Batch operations"></div>
+                <div id="kb-admin-panel" class="panel-content" style="display: none;" role="region" aria-label="Knowledge base admin"></div>
             </div>
         </div>
-        
+
         <!-- Status Bar -->
-        <footer class="status-bar">
+        <footer class="status-bar" role="status" aria-live="polite">
             <span id="status-text">Ready</span>
             <span id="queue-status">Queue: 0 pending</span>
         </footer>
     </div>
-    
+
     <!-- Scripts (ES6 modules) -->
     <script type="module" src="/frontend/src/main.js"></script>
+    <script type="module" src="/frontend/src/easter-eggs.js"></script>
 </body>
 </html>

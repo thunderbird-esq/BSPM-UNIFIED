@@ -41,12 +41,36 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeBarryModal() {
     const barryModal = document.getElementById('barry-modal');
     const startBtn = document.getElementById('barry-start');
-    
+
     startBtn.addEventListener('click', () => {
-        barryModal.style.display = 'none';
-        document.getElementById('main-container').style.display = 'block';
-        initializeApp();
+        // Add startup animation
+        triggerStartupAnimation(barryModal);
+
+        // Hide modal and show main container after animation
+        setTimeout(() => {
+            barryModal.style.display = 'none';
+            document.getElementById('main-container').style.display = 'block';
+            initializeApp();
+        }, 600);
     });
+}
+
+function triggerStartupAnimation(barryModal) {
+    // Add fade-out class to modal
+    barryModal.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-out';
+    barryModal.style.opacity = '0';
+    barryModal.style.transform = 'scale(0.95)';
+
+    // Add fade-in class to main container
+    const mainContainer = document.getElementById('main-container');
+    mainContainer.style.opacity = '0';
+    mainContainer.style.transform = 'scale(1.05)';
+    mainContainer.style.transition = 'opacity 0.5s ease-in, transform 0.5s ease-in';
+
+    setTimeout(() => {
+        mainContainer.style.opacity = '1';
+        mainContainer.style.transform = 'scale(1)';
+    }, 100);
 }
 
 async function initializeApp() {
@@ -161,18 +185,21 @@ function togglePanel(panelName) {
 async function handleSendMessage() {
     const chatInput = document.getElementById('chat-input');
     const message = chatInput.value.trim();
-    
+
     if (!message) return;
-    
+
     // Clear input
     chatInput.value = '';
-    
+
     // Add user message to chat
     state.chatWindow.addMessage('user', message, { timestamp: new Date() });
-    
+
+    // Show typing indicator
+    state.chatWindow.showTypingIndicator();
+
     // Update status
     updateStatus('Sending to PM Agent...');
-    
+
     try {
         // Send to PM agent with selected preset
         const response = await apiCall('/api/v1/prompt', 'POST', {
@@ -180,14 +207,17 @@ async function handleSendMessage() {
             session_id: state.sessionId,
             preset: state.currentPreset
         });
-        
+
+        // Hide typing indicator
+        state.chatWindow.hideTypingIndicator();
+
         // Add PM response
         const pmMessage = state.chatWindow.addMessage(
             'assistant',
             response.message,
             { timestamp: new Date() }
         );
-        
+
         // If requires approval, add approval buttons
         if (response.requires_approval && response.plan) {
             pmMessage.addApprovalButtons(
@@ -196,11 +226,15 @@ async function handleSendMessage() {
                 () => handleCancel()
             );
         }
-        
+
         updateStatus('Ready');
-        
+
     } catch (error) {
         console.error('Failed to send message:', error);
+
+        // Hide typing indicator on error
+        state.chatWindow.hideTypingIndicator();
+
         state.chatWindow.addMessage(
             'system',
             `Error: ${error.message}`,

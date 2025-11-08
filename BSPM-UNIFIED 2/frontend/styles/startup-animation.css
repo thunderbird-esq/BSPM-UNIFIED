@@ -1,0 +1,280 @@
+/**
+ * GBStudio Automation Hub - Startup Animation
+ * Game Boy Boot Sequence
+ *
+ * Simulates the classic Game Boy startup animation:
+ * 1. Screen flash
+ * 2. "GAME BOY" text fade-in
+ * 3. Fade to main application
+ */
+
+/* ============================================================================
+   Boot Screen Container
+   ============================================================================ */
+.gb-boot-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #9bbc0f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: bootSequence 3s ease-in-out forwards;
+}
+
+.gb-boot-screen.hidden {
+    display: none;
+}
+
+/* ============================================================================
+   Boot Logo Text
+   ============================================================================ */
+.gb-boot-logo {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 32px;
+    color: #0f380f;
+    text-align: center;
+    letter-spacing: 4px;
+    opacity: 0;
+    animation: logoFadeIn 2s ease-in forwards;
+    animation-delay: 0.5s;
+}
+
+.gb-boot-subtitle {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    color: #306230;
+    text-align: center;
+    margin-top: 20px;
+    opacity: 0;
+    animation: subtitleFadeIn 1.5s ease-in forwards;
+    animation-delay: 1.5s;
+}
+
+/* ============================================================================
+   Keyframe Animations
+   ============================================================================ */
+
+/* Screen Flash Effect */
+@keyframes bootSequence {
+    0% {
+        background-color: #fff;
+        opacity: 1;
+    }
+    10% {
+        background-color: #9bbc0f;
+        opacity: 1;
+    }
+    85% {
+        background-color: #9bbc0f;
+        opacity: 1;
+    }
+    95% {
+        background-color: #9bbc0f;
+        opacity: 0.5;
+    }
+    100% {
+        background-color: #9bbc0f;
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+/* Logo Fade In */
+@keyframes logoFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    50% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Subtitle Fade In */
+@keyframes subtitleFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================================================
+   Nintendo-style Copyright Line
+   ============================================================================ */
+.gb-boot-copyright {
+    position: absolute;
+    bottom: 40px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: #0f380f;
+    opacity: 0;
+    animation: copyrightFadeIn 1s ease-in forwards;
+    animation-delay: 2s;
+}
+
+@keyframes copyrightFadeIn {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 0.7;
+    }
+}
+
+/* ============================================================================
+   Scanline Effect (Optional Retro Enhancement)
+   ============================================================================ */
+.gb-boot-screen::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(15, 56, 15, 0.1) 2px,
+        rgba(15, 56, 15, 0.1) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
+.gb-boot-logo,
+.gb-boot-subtitle,
+.gb-boot-copyright {
+    z-index: 2;
+    position: relative;
+}
+
+/* ============================================================================
+   Pixel Grid Effect (Optional)
+   ============================================================================ */
+.gb-boot-screen::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.03) 2px, rgba(0,0,0,.03) 4px),
+        repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,.03) 2px, rgba(0,0,0,.03) 4px);
+    pointer-events: none;
+    opacity: 0.3;
+}
+
+/* ============================================================================
+   Fade to Main App
+   ============================================================================ */
+@keyframes fadeToApp {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.app-container {
+    animation: fadeToApp 0.5s ease-in;
+    animation-delay: 3s;
+    animation-fill-mode: backwards;
+}
+
+/* ============================================================================
+   Nintendo Logo Effect (Optional Enhancement)
+   ============================================================================ */
+.gb-nintendo-logo {
+    width: 120px;
+    height: 40px;
+    margin-bottom: 30px;
+    opacity: 0;
+    animation: nintendoLogoFadeIn 1s ease-in forwards;
+    animation-delay: 0.2s;
+}
+
+@keyframes nintendoLogoFadeIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ============================================================================
+   Sound Wave Visualization (Optional)
+   ============================================================================ */
+.gb-boot-sound-wave {
+    position: absolute;
+    bottom: 100px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    animation: soundWaveFadeIn 0.5s ease-in forwards;
+    animation-delay: 0.3s;
+}
+
+.gb-boot-sound-wave span {
+    width: 4px;
+    height: 20px;
+    background-color: #0f380f;
+    animation: soundWave 0.6s ease-in-out infinite;
+}
+
+.gb-boot-sound-wave span:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.gb-boot-sound-wave span:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.gb-boot-sound-wave span:nth-child(3) {
+    animation-delay: 0.2s;
+}
+
+.gb-boot-sound-wave span:nth-child(4) {
+    animation-delay: 0.3s;
+}
+
+.gb-boot-sound-wave span:nth-child(5) {
+    animation-delay: 0.4s;
+}
+
+@keyframes soundWaveFadeIn {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes soundWave {
+    0%, 100% {
+        height: 10px;
+    }
+    50% {
+        height: 30px;
+    }
+}

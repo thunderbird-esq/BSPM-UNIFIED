@@ -282,7 +282,12 @@ class KBAdmin {
                     <input type="text" id="doc-filename" placeholder="my_document.md" required>
                 </div>
                 <div class="form-group">
-                    <label for="doc-content">Content:</label>
+                    <label>Content:</label>
+                    <div class="upload-zone" id="doc-upload-zone">
+                        <p>Drag and drop a file here or paste content below</p>
+                        <input type="file" id="doc-file-input" accept=".md,.txt" style="display: none;">
+                        <button type="button" class="btn-secondary" id="browse-file-btn">Browse Files</button>
+                    </div>
                     <textarea id="doc-content" rows="15" placeholder="# My Document&#10;&#10;Content here..." required></textarea>
                 </div>
                 <div class="form-actions">
@@ -291,7 +296,44 @@ class KBAdmin {
                 </div>
             </form>
         `);
-        
+
+        // Set up drag-and-drop functionality
+        const dropZone = document.getElementById('doc-upload-zone');
+        const fileInput = document.getElementById('doc-file-input');
+        const browseBtn = document.getElementById('browse-file-btn');
+        const contentTextarea = document.getElementById('doc-content');
+        const filenameInput = document.getElementById('doc-filename');
+
+        browseBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length > 0) {
+                this.handleFileUpload(files[0], contentTextarea, filenameInput);
+            }
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                this.handleFileUpload(files[0], contentTextarea, filenameInput);
+            }
+        });
+
         document.getElementById('upload-doc-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             await this.uploadDocument(
@@ -300,6 +342,17 @@ class KBAdmin {
             );
             modal.remove();
         });
+    }
+
+    handleFileUpload(file, contentTextarea, filenameInput) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            contentTextarea.value = e.target.result;
+            if (!filenameInput.value) {
+                filenameInput.value = file.name;
+            }
+        };
+        reader.readAsText(file);
     }
     
     async uploadDocument(filename, content) {
