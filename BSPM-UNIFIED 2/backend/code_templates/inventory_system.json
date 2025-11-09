@@ -1,0 +1,62 @@
+{
+  "name": "Item Collection System",
+  "description": "Collect items and store them in inventory variables",
+  "category": "logic",
+  "events": [
+    {
+      "id": "{{event_id_1}}",
+      "command": "EVENT_TEXT",
+      "args": {
+        "text": [
+          "Found {{item_name}}!"
+        ]
+      }
+    },
+    {
+      "id": "{{event_id_2}}",
+      "command": "EVENT_SET_VALUE",
+      "args": {
+        "variable": "{{item_variable}}",
+        "value": {
+          "type": "true"
+        }
+      }
+    },
+    {
+      "id": "{{event_id_3}}",
+      "command": "EVENT_ACTOR_HIDE",
+      "args": {
+        "actorId": "{{item_actor_id}}"
+      }
+    },
+    {
+      "id": "{{event_id_4}}",
+      "command": "EVENT_SOUND_PLAY_EFFECT",
+      "args": {
+        "type": "beep",
+        "pitch": 4,
+        "frequency": 200,
+        "duration": 0.5,
+        "wait": true
+      }
+    }
+  ],
+  "variables": {
+    "item_name": {
+      "type": "string",
+      "description": "Name of the item being collected",
+      "required": true
+    },
+    "item_variable": {
+      "type": "string",
+      "description": "Variable to set to true when item is collected",
+      "required": true,
+      "default": "L0"
+    },
+    "item_actor_id": {
+      "type": "string",
+      "description": "Actor ID of the item sprite to hide",
+      "required": true
+    }
+  }
+}

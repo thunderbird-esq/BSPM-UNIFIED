@@ -1,0 +1,371 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "red", "value": 100}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"]}
+      },
+      "targets": [
+        {"expr": "task_queue_depth", "refId": "A"}
+      ],
+      "title": "Queue Depth",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 10}
+            ]
+          },
+          "unit": "ops"
+        }
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"]}
+      },
+      "targets": [
+        {"expr": "task_queue:executions:rate5m", "refId": "A"}
+      ],
+      "title": "Task Execution Rate (5m)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 30},
+              {"color": "red", "value": 60}
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"]}
+      },
+      "targets": [
+        {"expr": "task_queue:execution_duration:p95:5m", "refId": "A"}
+      ],
+      "title": "Task Duration P95 (5m)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 10}
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"]}
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(task_queue_executions_total{status=\"failed\"}[5m])) / sum(rate(task_queue_executions_total[5m]))) * 100",
+          "refId": "A"
+        }
+      ],
+      "title": "Task Failure Rate (5m)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {"mode": "normal"}
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "task_queue_depth_by_priority{priority=\"high\"}",
+          "legendFormat": "High Priority",
+          "refId": "A"
+        },
+        {
+          "expr": "task_queue_depth_by_priority{priority=\"medium\"}",
+          "legendFormat": "Medium Priority",
+          "refId": "B"
+        },
+        {
+          "expr": "task_queue_depth_by_priority{priority=\"low\"}",
+          "legendFormat": "Low Priority",
+          "refId": "C"
+        }
+      ],
+      "title": "Queue Depth by Priority",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "ops"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(task_queue_executions_total{status=\"success\"}[5m])) by (priority)",
+          "legendFormat": "{{ priority }} - Success",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(task_queue_executions_total{status=\"failed\"}[5m])) by (priority)",
+          "legendFormat": "{{ priority }} - Failed",
+          "refId": "B"
+        }
+      ],
+      "title": "Task Execution Rate by Priority & Status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(task_queue_execution_duration_seconds_bucket[5m])) by (le, priority))",
+          "legendFormat": "{{ priority }} - p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(task_queue_execution_duration_seconds_bucket[5m])) by (le, priority))",
+          "legendFormat": "{{ priority }} - p95",
+          "refId": "B"
+        }
+      ],
+      "title": "Task Duration Percentiles by Priority",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "last"],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "task_queue_resource_availability{resource=\"cpu\"}",
+          "legendFormat": "CPU Available",
+          "refId": "A"
+        },
+        {
+          "expr": "task_queue_resource_availability{resource=\"memory\"}",
+          "legendFormat": "Memory Available",
+          "refId": "B"
+        }
+      ],
+      "title": "Resource Availability",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22},
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "pieType": "pie"
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(task_queue_executions_total[1h])) by (priority)",
+          "legendFormat": "{{ priority }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Task Distribution by Priority (1h)",
+      "type": "piechart"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22},
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "last"],
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "task_queue_concurrency_level",
+          "legendFormat": "Concurrent Tasks",
+          "refId": "A"
+        },
+        {
+          "expr": "task_queue_max_concurrency",
+          "legendFormat": "Max Concurrency",
+          "refId": "B"
+        }
+      ],
+      "title": "Task Concurrency",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["gbstudio", "task-queue", "jobs"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "",
+  "title": "GBStudio - Task Queue",
+  "uid": "gbstudio-task-queue",
+  "version": 1
+}

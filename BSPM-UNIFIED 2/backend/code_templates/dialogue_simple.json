@@ -1,0 +1,30 @@
+{
+  "name": "Simple Dialogue",
+  "description": "Basic NPC dialogue with single text box",
+  "category": "dialogue",
+  "events": [
+    {
+      "id": "{{event_id_1}}",
+      "command": "EVENT_TEXT",
+      "args": {
+        "text": [
+          "{{dialogue_text}}"
+        ],
+        "avatarId": "{{avatar_id}}"
+      }
+    }
+  ],
+  "variables": {
+    "dialogue_text": {
+      "type": "string",
+      "description": "The text to display in the dialogue box",
+      "required": true
+    },
+    "avatar_id": {
+      "type": "string",
+      "description": "Optional avatar sprite ID to show during dialogue",
+      "required": false,
+      "default": ""
+    }
+  }
+}

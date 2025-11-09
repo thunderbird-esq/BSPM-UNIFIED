@@ -1,0 +1,116 @@
+{
+  "name": "Basic Combat Logic",
+  "description": "Simple combat system with health and damage",
+  "category": "logic",
+  "events": [
+    {
+      "id": "{{event_id_1}}",
+      "command": "EVENT_IF",
+      "args": {
+        "variable": "{{health_variable}}",
+        "operator": ">",
+        "comparator": 0,
+        "vectorX": "0",
+        "vectorY": "0"
+      },
+      "children": {
+        "true": [
+          {
+            "id": "{{event_id_2}}",
+            "command": "EVENT_VARIABLE_MATH",
+            "args": {
+              "vectorX": "{{health_variable}}",
+              "operation": "sub",
+              "other": "val",
+              "vectorY": "0",
+              "value": {{damage_amount}},
+              "minValue": 0,
+              "maxValue": {{max_health}},
+              "clamp": true
+            }
+          },
+          {
+            "id": "{{event_id_3}}",
+            "command": "EVENT_TEXT",
+            "args": {
+              "text": [
+                "Took {{damage_amount}} damage!"
+              ]
+            }
+          },
+          {
+            "id": "{{event_id_4}}",
+            "command": "EVENT_IF",
+            "args": {
+              "variable": "{{health_variable}}",
+              "operator": "==",
+              "comparator": 0
+            },
+            "children": {
+              "true": [
+                {
+                  "id": "{{event_id_5}}",
+                  "command": "EVENT_TEXT",
+                  "args": {
+                    "text": [
+                      "{{defeat_message}}"
+                    ]
+                  }
+                },
+                {
+                  "id": "{{event_id_6}}",
+                  "command": "EVENT_SWITCH_SCENE",
+                  "args": {
+                    "sceneId": "{{game_over_scene}}",
+                    "x": {
+                      "type": "number",
+                      "value": 0
+                    },
+                    "y": {
+                      "type": "number",
+                      "value": 0
+                    },
+                    "direction": "",
+                    "fadeSpeed": "2"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "variables": {
+    "health_variable": {
+      "type": "string",
+      "description": "Variable storing player health",
+      "required": true,
+      "default": "L0"
+    },
+    "damage_amount": {
+      "type": "number",
+      "description": "Amount of damage to deal",
+      "required": true,
+      "default": 1
+    },
+    "max_health": {
+      "type": "number",
+      "description": "Maximum health value",
+      "required": false,
+      "default": 10
+    },
+    "defeat_message": {
+      "type": "string",
+      "description": "Message to show when health reaches 0",
+      "required": false,
+      "default": "Game Over!"
+    },
+    "game_over_scene": {
+      "type": "string",
+      "description": "Scene ID to switch to on defeat",
+      "required": false,
+      "default": ""
+    }
+  }
+}

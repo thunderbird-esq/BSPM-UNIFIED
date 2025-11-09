@@ -1,0 +1,89 @@
+{
+  "name": "Branching Dialogue",
+  "description": "Dialogue with player choices that branch to different outcomes",
+  "category": "dialogue",
+  "events": [
+    {
+      "id": "{{event_id_1}}",
+      "command": "EVENT_TEXT",
+      "args": {
+        "text": [
+          "{{initial_text}}"
+        ],
+        "avatarId": "{{avatar_id}}"
+      }
+    },
+    {
+      "id": "{{event_id_2}}",
+      "command": "EVENT_CHOICE",
+      "args": {
+        "variable": "{{choice_variable}}",
+        "trueText": "{{option_1_text}}",
+        "falseText": "{{option_2_text}}"
+      },
+      "children": {
+        "true": [
+          {
+            "id": "{{event_id_3}}",
+            "command": "EVENT_TEXT",
+            "args": {
+              "text": [
+                "{{option_1_response}}"
+              ]
+            }
+          }
+        ],
+        "false": [
+          {
+            "id": "{{event_id_4}}",
+            "command": "EVENT_TEXT",
+            "args": {
+              "text": [
+                "{{option_2_response}}"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "variables": {
+    "initial_text": {
+      "type": "string",
+      "description": "Initial dialogue text before choice",
+      "required": true
+    },
+    "avatar_id": {
+      "type": "string",
+      "description": "Optional avatar sprite ID",
+      "required": false,
+      "default": ""
+    },
+    "choice_variable": {
+      "type": "string",
+      "description": "Variable to store the choice result",
+      "required": true,
+      "default": "L0"
+    },
+    "option_1_text": {
+      "type": "string",
+      "description": "Text for first choice option",
+      "required": true
+    },
+    "option_2_text": {
+      "type": "string",
+      "description": "Text for second choice option",
+      "required": true
+    },
+    "option_1_response": {
+      "type": "string",
+      "description": "Response text if option 1 is chosen",
+      "required": true
+    },
+    "option_2_response": {
+      "type": "string",
+      "description": "Response text if option 2 is chosen",
+      "required": true
+    }
+  }
+}

@@ -1,0 +1,425 @@
+# Prometheus Alerting Rules for GBStudio Automation Hub
+# Version: 1.0
+# Platform: Intel Mac (macOS Ventura) + Docker
+#
+# Alert Severity Levels:
+# - critical: Immediate action required (pages on-call)
+# - warning: Investigate soon (creates ticket)
+# - info: Informational (logs only)
+
+groups:
+  # ==========================================================================
+  # CRITICAL ALERTS - Immediate Action Required
+  # ==========================================================================
+  - name: critical_alerts
+    interval: 30s
+    rules:
+      # Service Down Alerts
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: backend
+          oncall: true
+        annotations:
+          summary: "Backend service is down"
+          description: "Backend service {{ $labels.instance }} has been down for more than 1 minute."
+          runbook: "Check docker logs: docker logs gbstudio_backend"
+          impact: "Users cannot access the application"
+
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+          oncall: true
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL database {{ $labels.instance }} has been down for more than 1 minute."
+          runbook: "Check database: docker logs gbstudio_postgres"
+          impact: "Application cannot persist data"
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: cache
+          oncall: true
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis cache {{ $labels.instance }} has been down for more than 1 minute."
+          runbook: "Check cache: docker logs gbstudio_redis"
+          impact: "Sessions and cache unavailable"
+
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (instance)
+            /
+            sum(rate(http_requests_total[5m])) by (instance)
+          ) * 100 > 10
+        for: 5m
+        labels:
+          severity: critical
+          component: backend
+          oncall: true
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanize }}% on {{ $labels.instance }}."
+          runbook: "Check application logs and recent deployments"
+          impact: "Users experiencing frequent errors"
+
+      # High Response Time
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, instance)
+          ) > 10
+        for: 10m
+        labels:
+          severity: critical
+          component: backend
+          oncall: true
+        annotations:
+          summary: "High response time (p95)"
+          description: "95th percentile response time is {{ $value | humanize }}s on {{ $labels.instance }}."
+          runbook: "Check system resources and slow queries"
+          impact: "Severe performance degradation"
+
+      # Database Connection Pool Exhausted
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          pg_stat_database_numbackends / pg_settings_max_connections > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          component: database
+          oncall: true
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "Database connections at {{ $value | humanizePercentage }} of maximum."
+          runbook: "Check for connection leaks, increase pool size if needed"
+          impact: "New requests will be rejected"
+
+      # Disk Space Critical
+      - alert: DiskSpaceCritical
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/"}
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          component: system
+          oncall: true
+        annotations:
+          summary: "Critical disk space"
+          description: "Only {{ $value | humanize }}% disk space remaining on {{ $labels.instance }}."
+          runbook: "Clean up logs, old data, or expand disk"
+          impact: "System may crash or become unresponsive"
+
+      # Memory Usage Critical
+      - alert: MemoryUsageCritical
+        expr: system_memory_percent > 90
+        for: 5m
+        labels:
+          severity: critical
+          component: system
+          oncall: true
+        annotations:
+          summary: "Critical memory usage"
+          description: "Memory usage is {{ $value | humanize }}% on {{ $labels.instance }}."
+          runbook: "Check for memory leaks, restart services if needed"
+          impact: "System may OOM kill processes"
+
+  # ==========================================================================
+  # WARNING ALERTS - Investigate Soon
+  # ==========================================================================
+  - name: warning_alerts
+    interval: 1m
+    rules:
+      # Moderate Error Rate
+      - alert: ModerateErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (instance)
+            /
+            sum(rate(http_requests_total[5m])) by (instance)
+          ) * 100 > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "Moderate error rate detected"
+          description: "Error rate is {{ $value | humanize }}% on {{ $labels.instance }}."
+          runbook: "Investigate error logs and patterns"
+
+      # Elevated Response Time
+      - alert: ElevatedResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, instance)
+          ) > 5
+        for: 15m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "Elevated response time (p95)"
+          description: "95th percentile response time is {{ $value | humanize }}s on {{ $labels.instance }}."
+          runbook: "Monitor system resources and optimize slow endpoints"
+
+      # Low Cache Hit Rate
+      - alert: LowCacheHitRate
+        expr: |
+          (
+            redis_keyspace_hits_total
+            /
+            (redis_keyspace_hits_total + redis_keyspace_misses_total)
+          ) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Low Redis cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}."
+          runbook: "Review cache keys and TTL settings"
+
+      # High Queue Depth
+      - alert: HighQueueDepth
+        expr: task_queue_depth > 100
+        for: 10m
+        labels:
+          severity: warning
+          component: task-queue
+        annotations:
+          summary: "High task queue depth"
+          description: "Task queue depth is {{ $value }} tasks on {{ $labels.instance }}."
+          runbook: "Check worker capacity and task processing rate"
+
+      # High Failed Login Rate
+      - alert: HighFailedLoginRate
+        expr: |
+          (
+            rate(auth_login_attempts_total{status="failed"}[10m])
+            /
+            rate(auth_login_attempts_total[10m])
+          ) > 0.2
+        for: 15m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "High failed login rate"
+          description: "Failed login rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}."
+          runbook: "Check for brute force attacks, review security logs"
+
+      # Slow Database Queries
+      - alert: SlowDatabaseQueries
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(database_query_duration_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "95th percentile query time is {{ $value | humanize }}s."
+          runbook: "Review slow query log and optimize queries"
+
+      # Circuit Breaker Open
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state{state="open"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: reliability
+        annotations:
+          summary: "Circuit breaker open"
+          description: "Circuit breaker for {{ $labels.service }} is open."
+          runbook: "Check service health and error rates"
+
+      # Disk Space Warning
+      - alert: DiskSpaceWarning
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/"}
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) * 100 < 20
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Low disk space"
+          description: "Only {{ $value | humanize }}% disk space remaining on {{ $labels.instance }}."
+          runbook: "Plan disk cleanup or expansion"
+
+      # Memory Usage Warning
+      - alert: MemoryUsageWarning
+        expr: system_memory_percent > 80
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanize }}% on {{ $labels.instance }}."
+          runbook: "Monitor memory trends and consider scaling"
+
+      # CPU Usage Warning
+      - alert: HighCPUUsage
+        expr: system_cpu_percent > 80
+        for: 15m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value | humanize }}% on {{ $labels.instance }}."
+          runbook: "Check for CPU-intensive operations"
+
+  # ==========================================================================
+  # Generation Performance Alerts
+  # ==========================================================================
+  - name: generation_alerts
+    interval: 1m
+    rules:
+      # High Sprite Generation Failure Rate
+      - alert: HighSpriteGenerationFailureRate
+        expr: |
+          (
+            rate(sprite_generation_requests_total{status=~"failed|timeout"}[10m])
+            /
+            rate(sprite_generation_requests_total[10m])
+          ) > 0.2
+        for: 15m
+        labels:
+          severity: warning
+          component: generation
+        annotations:
+          summary: "High sprite generation failure rate"
+          description: "Sprite generation failure rate is {{ $value | humanizePercentage }}."
+          runbook: "Check ComfyUI service health and generation logs"
+
+      # Slow Sprite Generation
+      - alert: SlowSpriteGeneration
+        expr: |
+          histogram_quantile(0.95,
+            rate(sprite_generation_duration_seconds_bucket[10m])
+          ) > 600
+        for: 15m
+        labels:
+          severity: warning
+          component: generation
+        annotations:
+          summary: "Slow sprite generation"
+          description: "95th percentile sprite generation time is {{ $value | humanize }}s."
+          runbook: "Check ComfyUI performance and resource availability"
+
+      # High Validation Failure Rate
+      - alert: HighValidationFailureRate
+        expr: rate(sprite_validation_failures_total[10m]) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+          component: validation
+        annotations:
+          summary: "High sprite validation failure rate"
+          description: "Sprite validation failures at {{ $value }} per second."
+          runbook: "Review validation failures and generation parameters"
+
+  # ==========================================================================
+  # Service Health Alerts
+  # ==========================================================================
+  - name: service_health_alerts
+    interval: 1m
+    rules:
+      # Ollama Service Unhealthy
+      - alert: OllamaUnhealthy
+        expr: service_health{service="ollama"} == 0
+        for: 3m
+        labels:
+          severity: warning
+          component: llm
+        annotations:
+          summary: "Ollama service unhealthy"
+          description: "Ollama service health check failing."
+          runbook: "Check Ollama service on host machine"
+
+      # ComfyUI Service Unhealthy
+      - alert: ComfyUIUnhealthy
+        expr: service_health{service="comfyui"} == 0
+        for: 3m
+        labels:
+          severity: warning
+          component: generation
+        annotations:
+          summary: "ComfyUI service unhealthy"
+          description: "ComfyUI service health check failing."
+          runbook: "Check ComfyUI service: docker logs gbstudio_comfyui"
+
+      # High Service Latency
+      - alert: HighServiceLatency
+        expr: service_latency_seconds > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: integration
+        annotations:
+          summary: "High service latency"
+          description: "{{ $labels.service }} latency is {{ $value | humanize }}s."
+          runbook: "Check service performance and network connectivity"
+
+  # ==========================================================================
+  # INFO ALERTS - Informational
+  # ==========================================================================
+  - name: info_alerts
+    interval: 5m
+    rules:
+      # API Key Usage (Deprecated)
+      - alert: DeprecatedAPIKeyUsage
+        expr: rate(auth_api_key_usage_total[1h]) > 0
+        for: 1h
+        labels:
+          severity: info
+          component: security
+        annotations:
+          summary: "Deprecated API key usage detected"
+          description: "API keys used {{ $value }} times in the last hour."
+          runbook: "Notify users to migrate to session-based auth"
+
+      # High Generation Volume
+      - alert: HighGenerationVolume
+        expr: rate(sprite_generation_requests_total[1h]) > 100
+        for: 1h
+        labels:
+          severity: info
+          component: generation
+        annotations:
+          summary: "High sprite generation volume"
+          description: "Generation rate is {{ $value }} per second."
+          runbook: "Monitor resource usage and scaling needs"
+
+      # Service Restart Detected
+      - alert: ServiceRestarted
+        expr: time() - process_start_time_seconds < 300
+        for: 1m
+        labels:
+          severity: info
+          component: system
+        annotations:
+          summary: "Service recently restarted"
+          description: "{{ $labels.job }} on {{ $labels.instance }} restarted {{ $value | humanizeDuration }} ago."
+          runbook: "Review restart reason in logs"

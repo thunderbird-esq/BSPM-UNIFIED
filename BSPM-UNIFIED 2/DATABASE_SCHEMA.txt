@@ -1,0 +1,255 @@
+================================================================================
+DATABASE SCHEMA DIAGRAM - GBStudio Automation Hub
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              USERS TABLE                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ PK  id                   : String(36) UUID                                  │
+│ UQ  username             : String(255) INDEXED                              │
+│ UQ  email                : String(255) INDEXED                              │
+│     hashed_password      : String(255)                                      │
+│     role                 : Enum(admin, user, guest)                         │
+│     full_name            : String(255)                                      │
+│     avatar_url           : String(512)                                      │
+│     is_active            : Boolean (default: true)                          │
+│     is_verified          : Boolean (default: false)                         │
+│     created_at           : DateTime                                         │
+│     updated_at           : DateTime                                         │
+│     last_login_at        : DateTime                                         │
+│     metadata             : JSON                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        │ 1:N
+        │
+        ├─────────────────┐
+        │                 │
+        ▼                 ▼
+┌──────────────────┐  ┌──────────────────────────────────────────────────────┐
+│  SESSIONS TABLE  │  │           GENERATION_HISTORY TABLE                   │
+├──────────────────┤  ├──────────────────────────────────────────────────────┤
+│ PK  session_id   │  │ PK  id                : String(36) UUID              │
+│ FK  user_id      │  │ FK  user_id           : String(36) → users.id        │
+│ UQ  token        │  │     asset_type        : Enum(sprite, music, sfx...)  │
+│     ip_address   │  │     status            : Enum(pending, completed...)  │
+│     user_agent   │  │     input_prompt      : Text                         │
+│     created_at   │  │     input_parameters  : JSON                         │
+│     expires_at   │  │     output_path       : String(512)                  │
+│ ... is_active    │  │     output_metadata   : JSON                         │
+│     metadata     │  │     duration_seconds  : Float                        │
+└──────────────────┘  │     cost_credits      : Float                        │
+IDX: user_id+active   │     error_message     : Text                         │
+IDX: expires_at       │     retry_count       : Integer                      │
+                      │     created_at        : DateTime                     │
+                      │     started_at        : DateTime                     │
+                      │     completed_at      : DateTime                     │
+                      │     metadata          : JSON                         │
+                      └──────────────────────────────────────────────────────┘
+                              │ IDX: user_id+created_at
+                              │ IDX: status
+                              │ IDX: asset_type
+                              │
+                              │ 1:N
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌────────────────┐    ┌─────────────────┐  ┌──────────────────┐
+│ SPRITES TABLE  │    │ MUSIC_TRACKS    │  │ SOUND_EFFECTS    │
+├────────────────┤    ├─────────────────┤  ├──────────────────┤
+│ PK  sprite_id  │    │ PK  track_id    │  │ PK  sfx_id       │
+│ FK  user_id    │    │ FK  user_id     │  │ FK  user_id      │
+│ FK  gen_id     │    │ FK  gen_id      │  │ FK  gen_id       │
+│     description│    │     description │  │     description  │
+│     file_path  │    │     file_path   │  │     file_path    │
+│     thumbnail  │    │     duration_s  │  │     duration_s   │
+│     width      │    │     format      │  │     format       │
+│     height     │    │     tempo       │  │     sample_rate  │
+│     format     │    │     key_sig     │  │     effect_type  │
+│     style      │    │     style       │  │     tags         │
+│     prompt     │    │     mood        │  │     category     │
+│     neg_prompt │    │     tags        │  │     created_at   │
+│     seed       │    │     category    │  │     updated_at   │
+│     tags       │    │     created_at  │  │     metadata     │
+│     category   │    │     updated_at  │  └──────────────────┘
+│     created_at │    │     metadata    │  IDX: user+created
+│     updated_at │    └─────────────────┘  IDX: category
+│     metadata   │    IDX: user+created
+└────────────────┘    IDX: category
+IDX: user+created
+IDX: category
+                                          ┌──────────────────────┐
+                                          │  SCRIPTS TABLE       │
+                                          ├──────────────────────┤
+                                          │ PK  script_id        │
+                                          │ FK  user_id          │
+                                          │ FK  generation_id    │
+                                          │     name             │
+                                          │     description      │
+                                          │     events (JSON)    │
+                                          │     script_type      │
+                                          │     complexity_score │
+                                          │     tags             │
+                                          │     category         │
+                                          │     created_at       │
+                                          │     updated_at       │
+                                          │     metadata         │
+                                          └──────────────────────┘
+                                          IDX: user+created
+                                          IDX: script_type
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           AUDIT_LOGS TABLE                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ PK  id                   : String(36) UUID                                  │
+│ FK  user_id              : String(36) → users.id (SET NULL on delete)       │
+│     action               : String(255)                                      │
+│     resource_type        : String(100)                                      │
+│     resource_id          : String(36)                                       │
+│     ip_address           : String(45) (IPv6 compatible)                     │
+│     user_agent           : String(512)                                      │
+│     endpoint             : String(512)                                      │
+│     method               : String(10) (GET, POST, etc.)                     │
+│     status_code          : Integer                                          │
+│     success              : Boolean                                          │
+│     error_message        : Text                                             │
+│     timestamp            : DateTime INDEXED                                 │
+│     details              : JSON                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+IDX: user_id + timestamp
+IDX: action
+IDX: resource_type + resource_id
+
+================================================================================
+RELATIONSHIPS SUMMARY
+================================================================================
+
+1. users (1) → (N) sessions
+   - One user can have multiple active sessions
+   - CASCADE DELETE: Delete sessions when user is deleted
+
+2. users (1) → (N) generation_history
+   - One user can have multiple generation attempts
+   - CASCADE DELETE: Delete history when user is deleted
+
+3. generation_history (1) → (N) sprites
+   - One generation can produce multiple sprites (e.g., animation frames)
+   - NULL on delete: Sprites remain if generation history is deleted
+
+4. generation_history (1) → (N) music_tracks
+   - One generation can produce multiple tracks (e.g., variations)
+   - NULL on delete: Tracks remain if generation history is deleted
+
+5. generation_history (1) → (N) sound_effects
+   - One generation can produce multiple SFX
+   - NULL on delete: SFX remain if generation history is deleted
+
+6. generation_history (1) → (N) scripts
+   - One generation can produce multiple scripts
+   - NULL on delete: Scripts remain if generation history is deleted
+
+7. users (1) → (N) audit_logs
+   - One user generates many audit log entries
+   - SET NULL: Preserve audit logs even if user is deleted
+
+8. users (1) → (N) sprites
+   - One user owns many sprites
+   - CASCADE DELETE: Delete sprites when user is deleted
+
+9. users (1) → (N) music_tracks
+   - One user owns many music tracks
+   - CASCADE DELETE: Delete tracks when user is deleted
+
+10. users (1) → (N) sound_effects
+    - One user owns many sound effects
+    - CASCADE DELETE: Delete SFX when user is deleted
+
+11. users (1) → (N) scripts
+    - One user owns many scripts
+    - CASCADE DELETE: Delete scripts when user is deleted
+
+================================================================================
+INDEX STRATEGY
+================================================================================
+
+Primary Indexes (Automatic):
+- All primary keys (id, sprite_id, track_id, etc.)
+- All unique constraints (username, email, token)
+
+Secondary Indexes (Performance):
+- users.username          → Fast user lookup
+- users.email             → Fast email lookup
+- sessions.user_id + is_active → Fast active session lookup
+- sessions.expires_at     → Fast session cleanup
+- sprites.user_id + created_at → Fast user asset listing
+- sprites.category        → Fast category filtering
+- music_tracks.user_id + created_at → Fast user asset listing
+- music_tracks.category   → Fast category filtering
+- sound_effects.user_id + created_at → Fast user asset listing
+- sound_effects.category  → Fast category filtering
+- scripts.user_id + created_at → Fast user asset listing
+- scripts.script_type     → Fast type filtering
+- generation_history.user_id + created_at → Fast history lookup
+- generation_history.status → Fast status filtering
+- generation_history.asset_type → Fast type filtering
+- audit_logs.user_id + timestamp → Fast user audit trail
+- audit_logs.action       → Fast action filtering
+- audit_logs.resource_type + resource_id → Fast resource audit
+
+================================================================================
+DATA TYPES & CONSTRAINTS
+================================================================================
+
+String Sizes:
+- UUID/ID fields: 36 characters (standard UUID)
+- Short strings (username, email): 255 characters
+- URLs/paths: 512 characters
+- Text fields: Unlimited (description, prompts, events)
+
+JSON Fields (PostgreSQL JSONB):
+- metadata: Flexible key-value storage
+- input_parameters: Generation parameters
+- output_metadata: Generation results
+- events: GB Studio event structure
+- tags: Array of tag strings
+- details: Audit log details
+
+Enums:
+- UserRole: admin, user, guest
+- AssetType: sprite, music, sfx, script
+- GenerationStatus: pending, in_progress, completed, failed, cancelled
+
+Timestamps:
+- created_at: Set on creation (NOT NULL)
+- updated_at: Set on creation and update (NOT NULL)
+- completed_at: Set when generation completes (NULLABLE)
+- expires_at: Set for session expiration (NOT NULL)
+- last_login_at: Updated on successful login (NULLABLE)
+
+================================================================================
+REDIS CACHE SCHEMA
+================================================================================
+
+Key Patterns:
+┌────────────────────────────────────────────────────────────────────────────┐
+│ session:{session_id}        → User session data (24h TTL)                  │
+│ cache:llm:{hash}            → LLM response cache (5m TTL)                  │
+│ cache:kb:{hash}             → Knowledge base query cache (15m TTL)         │
+│ cache:asset:{asset_id}      → Asset metadata cache (1h TTL)                │
+│ ratelimit:user:{user_id}    → Rate limiting counter (window-based)         │
+│ ratelimit:ip:{ip_address}   → IP-based rate limiting                       │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Data Types:
+- String: Simple key-value (sessions, cache)
+- Integer: Counters (rate limiting)
+- Hash: Complex objects (user preferences)
+- Set: Collections (active users)
+- Sorted Set: Leaderboards, time-based data
+
+TTL Strategy:
+- Short-lived (5m): LLM responses, temporary data
+- Medium-lived (15m-1h): Knowledge base, asset metadata
+- Long-lived (24h): User sessions
+- Permanent: Configuration, feature flags
+
+================================================================================

@@ -1,0 +1,335 @@
+# Prometheus Recording Rules for GBStudio Automation Hub
+# Version: 1.0
+# Platform: Intel Mac (macOS Ventura) + Docker
+#
+# Recording rules pre-compute frequently used or expensive queries
+# to improve dashboard performance and reduce query load.
+
+groups:
+  # ==========================================================================
+  # HTTP Request Metrics Aggregations
+  # ==========================================================================
+  - name: http_request_aggregations
+    interval: 30s
+    rules:
+      # Request rate per endpoint (1m)
+      - record: http:requests:rate1m
+        expr: |
+          sum(rate(http_requests_total[1m])) by (method, endpoint, status)
+
+      # Request rate per endpoint (5m)
+      - record: http:requests:rate5m
+        expr: |
+          sum(rate(http_requests_total[5m])) by (method, endpoint, status)
+
+      # Total request rate (1m)
+      - record: http:requests:rate1m:total
+        expr: |
+          sum(rate(http_requests_total[1m]))
+
+      # Error rate (5m)
+      - record: http:errors:rate5m
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) by (instance)
+
+      # Error percentage (5m)
+      - record: http:errors:percentage5m
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (instance)
+            /
+            sum(rate(http_requests_total[5m])) by (instance)
+          ) * 100
+
+      # Request duration p50 (5m)
+      - record: http:request_duration:p50:5m
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint)
+          )
+
+      # Request duration p95 (5m)
+      - record: http:request_duration:p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint)
+          )
+
+      # Request duration p99 (5m)
+      - record: http:request_duration:p99:5m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint)
+          )
+
+  # ==========================================================================
+  # Sprite Generation Metrics Aggregations
+  # ==========================================================================
+  - name: sprite_generation_aggregations
+    interval: 1m
+    rules:
+      # Sprite generation rate (1m)
+      - record: sprite:generation:rate1m
+        expr: |
+          sum(rate(sprite_generation_requests_total[1m])) by (status)
+
+      # Sprite generation rate (5m)
+      - record: sprite:generation:rate5m
+        expr: |
+          sum(rate(sprite_generation_requests_total[5m])) by (status)
+
+      # Sprite generation success rate (5m)
+      - record: sprite:generation:success_rate5m
+        expr: |
+          (
+            sum(rate(sprite_generation_requests_total{status="success"}[5m]))
+            /
+            sum(rate(sprite_generation_requests_total[5m]))
+          ) * 100
+
+      # Sprite generation failure rate (5m)
+      - record: sprite:generation:failure_rate5m
+        expr: |
+          (
+            sum(rate(sprite_generation_requests_total{status=~"failed|timeout"}[5m]))
+            /
+            sum(rate(sprite_generation_requests_total[5m]))
+          ) * 100
+
+      # Sprite generation duration p50 (10m)
+      - record: sprite:generation_duration:p50:10m
+        expr: |
+          histogram_quantile(0.50,
+            rate(sprite_generation_duration_seconds_bucket[10m])
+          )
+
+      # Sprite generation duration p95 (10m)
+      - record: sprite:generation_duration:p95:10m
+        expr: |
+          histogram_quantile(0.95,
+            rate(sprite_generation_duration_seconds_bucket[10m])
+          )
+
+      # Sprite generation duration p99 (10m)
+      - record: sprite:generation_duration:p99:10m
+        expr: |
+          histogram_quantile(0.99,
+            rate(sprite_generation_duration_seconds_bucket[10m])
+          )
+
+      # Validation failure rate by reason (5m)
+      - record: sprite:validation_failures:rate5m
+        expr: |
+          sum(rate(sprite_validation_failures_total[5m])) by (reason)
+
+  # ==========================================================================
+  # PM Agent Metrics Aggregations
+  # ==========================================================================
+  - name: pm_agent_aggregations
+    interval: 1m
+    rules:
+      # PM agent request rate (1m)
+      - record: pm_agent:requests:rate1m
+        expr: |
+          sum(rate(pm_agent_requests_total[1m])) by (requires_approval)
+
+      # PM agent request rate (5m)
+      - record: pm_agent:requests:rate5m
+        expr: |
+          sum(rate(pm_agent_requests_total[5m])) by (requires_approval)
+
+      # PM agent response time p50 (5m)
+      - record: pm_agent:response_duration:p50:5m
+        expr: |
+          histogram_quantile(0.50,
+            rate(pm_agent_response_duration_seconds_bucket[5m])
+          )
+
+      # PM agent response time p95 (5m)
+      - record: pm_agent:response_duration:p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            rate(pm_agent_response_duration_seconds_bucket[5m])
+          )
+
+      # PM agent response time p99 (5m)
+      - record: pm_agent:response_duration:p99:5m
+        expr: |
+          histogram_quantile(0.99,
+            rate(pm_agent_response_duration_seconds_bucket[5m])
+          )
+
+      # Knowledge base search rate (5m)
+      - record: knowledge_base:searches:rate5m
+        expr: |
+          rate(knowledge_base_searches_total[5m])
+
+  # ==========================================================================
+  # Service Health Aggregations
+  # ==========================================================================
+  - name: service_health_aggregations
+    interval: 30s
+    rules:
+      # Service availability (5m average)
+      - record: service:availability:5m
+        expr: |
+          avg_over_time(service_health[5m]) * 100
+
+      # Service latency average (5m)
+      - record: service:latency:avg5m
+        expr: |
+          avg_over_time(service_latency_seconds[5m])
+
+  # ==========================================================================
+  # System Resource Aggregations
+  # ==========================================================================
+  - name: system_resource_aggregations
+    interval: 30s
+    rules:
+      # Average CPU usage (5m)
+      - record: system:cpu:avg5m
+        expr: |
+          avg_over_time(system_cpu_percent[5m])
+
+      # Average memory usage (5m)
+      - record: system:memory:avg5m
+        expr: |
+          avg_over_time(system_memory_percent[5m])
+
+      # Average disk usage (5m)
+      - record: system:disk:avg5m
+        expr: |
+          avg_over_time(system_disk_percent[5m])
+
+  # ==========================================================================
+  # Database Metrics Aggregations
+  # ==========================================================================
+  - name: database_aggregations
+    interval: 1m
+    rules:
+      # Database query rate (5m)
+      - record: database:queries:rate5m
+        expr: |
+          sum(rate(database_query_duration_seconds_count[5m]))
+
+      # Database query duration p50 (5m)
+      - record: database:query_duration:p50:5m
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(database_query_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # Database query duration p95 (5m)
+      - record: database:query_duration:p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(database_query_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # Database query duration p99 (5m)
+      - record: database:query_duration:p99:5m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(database_query_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # Database connection pool usage
+      - record: database:connection_pool:usage_percent
+        expr: |
+          (
+            database_connection_pool_active
+            /
+            database_connection_pool_size
+          ) * 100
+
+  # ==========================================================================
+  # Cache Metrics Aggregations
+  # ==========================================================================
+  - name: cache_aggregations
+    interval: 1m
+    rules:
+      # Cache hit rate (5m)
+      - record: cache:hit_rate:5m
+        expr: |
+          (
+            sum(rate(cache_hits_total[5m]))
+            /
+            (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m])))
+          ) * 100
+
+      # Cache miss rate (5m)
+      - record: cache:miss_rate:5m
+        expr: |
+          (
+            sum(rate(cache_misses_total[5m]))
+            /
+            (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m])))
+          ) * 100
+
+      # Cache operations rate (5m)
+      - record: cache:operations:rate5m
+        expr: |
+          sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m]))
+
+  # ==========================================================================
+  # Authentication & Security Aggregations
+  # ==========================================================================
+  - name: auth_security_aggregations
+    interval: 1m
+    rules:
+      # Login attempt rate (5m)
+      - record: auth:login_attempts:rate5m
+        expr: |
+          sum(rate(auth_login_attempts_total[5m])) by (status)
+
+      # Failed login rate (5m)
+      - record: auth:failed_logins:rate5m
+        expr: |
+          sum(rate(auth_login_attempts_total{status="failed"}[5m]))
+
+      # Failed login percentage (5m)
+      - record: auth:failed_logins:percentage5m
+        expr: |
+          (
+            sum(rate(auth_login_attempts_total{status="failed"}[5m]))
+            /
+            sum(rate(auth_login_attempts_total[5m]))
+          ) * 100
+
+      # Account lockout rate (5m)
+      - record: auth:lockouts:rate5m
+        expr: |
+          rate(auth_account_lockouts_total[5m])
+
+      # Rate limit hit rate (5m)
+      - record: security:rate_limits:rate5m
+        expr: |
+          sum(rate(rate_limit_hits_total[5m])) by (endpoint)
+
+  # ==========================================================================
+  # Task Queue Aggregations
+  # ==========================================================================
+  - name: task_queue_aggregations
+    interval: 30s
+    rules:
+      # Task execution rate (5m)
+      - record: task_queue:executions:rate5m
+        expr: |
+          sum(rate(task_queue_executions_total[5m])) by (status, priority)
+
+      # Task failure rate (5m)
+      - record: task_queue:failures:rate5m
+        expr: |
+          sum(rate(task_queue_executions_total{status="failed"}[5m]))
+
+      # Task execution duration p95 (5m)
+      - record: task_queue:execution_duration:p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(task_queue_execution_duration_seconds_bucket[5m])) by (le, priority)
+          )
+
+      # Average queue depth (5m)
+      - record: task_queue:depth:avg5m
+        expr: |
+          avg_over_time(task_queue_depth[5m])

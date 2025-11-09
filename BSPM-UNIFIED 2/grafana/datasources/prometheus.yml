@@ -1,0 +1,53 @@
+# Grafana Datasource Configuration for Prometheus
+# Version: 1.0
+# Platform: Intel Mac (macOS Ventura) + Docker
+#
+# This file is automatically provisioned by Grafana on startup.
+
+apiVersion: 1
+
+# List of datasources
+datasources:
+  # Prometheus datasource
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # HTTP method to use for queries
+      httpMethod: POST
+
+      # Query timeout
+      queryTimeout: 60s
+
+      # Time interval for queries
+      timeInterval: 15s
+
+      # Custom query parameters
+      customQueryParameters: ''
+
+      # Enable exemplars (for traces integration)
+      exemplarTraceIdDestinations: []
+
+    # Enable basic metrics
+    version: 1
+
+  # Optional: Alertmanager datasource for alert browsing
+  - name: Alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    isDefault: false
+    editable: false
+    jsonData:
+      # Implementation type
+      implementation: prometheus
+
+    version: 1
+
+# Delete datasources not in this list
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1

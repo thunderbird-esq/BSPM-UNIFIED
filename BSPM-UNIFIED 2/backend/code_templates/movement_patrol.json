@@ -1,0 +1,88 @@
+{
+  "name": "Actor Patrol Pattern",
+  "description": "Make an actor patrol back and forth between two points",
+  "category": "movement",
+  "events": [
+    {
+      "id": "{{event_id_1}}",
+      "command": "EVENT_ACTOR_MOVE_TO",
+      "args": {
+        "actorId": "{{actor_id}}",
+        "x": {{target_x}},
+        "y": {{target_y}},
+        "moveType": "horizontal",
+        "useCollisions": true
+      }
+    },
+    {
+      "id": "{{event_id_2}}",
+      "command": "EVENT_WAIT",
+      "args": {
+        "time": {{wait_time}},
+        "frames": 30
+      }
+    },
+    {
+      "id": "{{event_id_3}}",
+      "command": "EVENT_ACTOR_MOVE_TO",
+      "args": {
+        "actorId": "{{actor_id}}",
+        "x": {{start_x}},
+        "y": {{start_y}},
+        "moveType": "horizontal",
+        "useCollisions": true
+      }
+    },
+    {
+      "id": "{{event_id_4}}",
+      "command": "EVENT_WAIT",
+      "args": {
+        "time": {{wait_time}},
+        "frames": 30
+      }
+    },
+    {
+      "id": "{{event_id_5}}",
+      "command": "EVENT_LOOP",
+      "args": {},
+      "children": {
+        "true": [
+          "{{event_id_1}}"
+        ]
+      }
+    }
+  ],
+  "variables": {
+    "actor_id": {
+      "type": "string",
+      "description": "ID of the actor to move",
+      "required": true
+    },
+    "start_x": {
+      "type": "number",
+      "description": "Starting X position",
+      "required": true
+    },
+    "start_y": {
+      "type": "number",
+      "description": "Starting Y position",
+      "required": true
+    },
+    "target_x": {
+      "type": "number",
+      "description": "Target X position to patrol to",
+      "required": true
+    },
+    "target_y": {
+      "type": "number",
+      "description": "Target Y position to patrol to",
+      "required": true
+    },
+    "wait_time": {
+      "type": "number",
+      "description": "Time to wait at each point (seconds)",
+      "required": false,
+      "default": 1
+    }
+  }
+}
